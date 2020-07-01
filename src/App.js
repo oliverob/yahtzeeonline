@@ -1,13 +1,13 @@
 import React from 'react';
 import './App.css';
-import { Route } from 'react-router-dom';
+import { Route, useParams } from 'react-router-dom';
 import { Switch} from 'react-router-dom';
 import { useHistory } from "react-router-dom";
 import { useState } from 'react';
 import * as firebase from 'firebase/app';
 import "firebase/analytics";
 import "firebase/firestore";
-import { useCookies } from 'react-cookie';
+import Cookies from 'universal-cookie';
 
 function App() {
   const firebaseConfig = {
@@ -50,11 +50,10 @@ function EnterRoomIdPage() {
 
 function CreateRoomButton()  {
   let history = useHistory();
-  const [userIdCookies, setUserIdCookie, removeUserIdCookie] = useCookies(['userId']);
+  
 
   function handleClick() {
     const roomId = addNewRoom();
-    addNewUser(roomId).then(function(user) {setUserIdCookie('userId',user.id)});
     history.push("/"+ roomId);
   }
 
@@ -67,7 +66,6 @@ function CreateRoomButton()  {
 
 function JoinRoomIDForm() {
   const [roomId, setRoomid] = useState('');
-  const [userIdCookies, setUserIdCookie, removeUserIdCookie] = useCookies(['userId']);
   let history = useHistory();
 
   function handleChange(event) {
@@ -76,7 +74,6 @@ function JoinRoomIDForm() {
 
   function handleSubmit(event) {
     roomExists(roomId).then(exists => {if (exists) {
-      addNewUser(roomId).then(function(user) {setUserIdCookie('userId',user.id)});
       history.push("/"+ roomId);
     } else {
       alert('Room does not exist')
@@ -102,16 +99,6 @@ function addNewRoom() {
   const roomId = getRoomId();
   db.collection("rooms").doc(roomId).set({ });
   return roomId;
-}
-
-//Add a new user with server generated unique ID, and the given room ID to the database
-//Returns the unique server generated ID
-function addNewUser(roomId) {
-  const db = firebase.firestore();
-  const users = db.collection("users");
-  return users.add({
-    roomId: roomId
-  });
 }
 
 //Generate a new unique room ID
@@ -153,28 +140,68 @@ function roomExists(roomId){
 //==============================================================================
 
 function GamePage() {
-  const [playerReady, setPlayerReady] = useState(false);
+  const cookies = new Cookies();
+  const {roomId} = useParams();
+  const [userReady, setUserReady] = useState(cookies.get('roomId')===roomId);
   
-    if (playerReady){
+    if (userReady){
       return (
         <div>
-      <EnterName />
+      <Game />
       </div>
       )
     } else {
       return (
         <div>
-      <Game />
+      <EnterName />
       </div>
       )
     }
 }
 
 function EnterName() {
-  return (<div></div>);
+  const {roomId} = useParams();
+  const [name, setName] = useState("");
+  
+  function handleChange(event) {
+    setName(event.target.value);
+  }
+  function handleSubmit(event) {
+    createNewUser(roomId, name);
+  }
+  return (<form onSubmit={handleSubmit}>
+    <label>
+      Name:
+      <textarea value={name} onChange={handleChange} />
+    </label>
+    <input type="submit" value="Submit" />
+  </form>);
 }
 
+
 function Game() {
-  return (<div></div>);
+  const {roomId} = useParams();
+  return (<div>
+    <h1>
+    {roomId}
+    </h1>
+  </div>);
+}
+
+function createNewUser(roomId,name) {
+  const cookies = new Cookies();
+  addNewUser(roomId,name).then(function(user) {cookies.set('userId',user.id)});
+  cookies.set('roomId',roomId);
+}
+
+//Add a new user with server generated unique ID, and the given room ID to the database
+//Returns the unique server generated ID
+function addNewUser(roomId,name) {
+  const db = firebase.firestore();
+  const users = db.collection("users");
+  return users.add({
+    roomId: roomId,
+    name: name
+  });
 }
 export default App;
