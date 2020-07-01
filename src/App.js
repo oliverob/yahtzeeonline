@@ -7,6 +7,7 @@ import { useState } from 'react';
 import * as firebase from 'firebase/app';
 import "firebase/analytics";
 import "firebase/firestore";
+import { useCookies } from 'react-cookie';
 
 function App() {
   const firebaseConfig = {
@@ -24,6 +25,7 @@ function App() {
     <div>
       <Switch>
         <Route path = "/:roomId">
+          <GamePage />
         </Route>
         <Route path = "/">
           <EnterRoomIdPage />
@@ -48,10 +50,11 @@ function EnterRoomIdPage() {
 
 function CreateRoomButton()  {
   let history = useHistory();
-  
+  const [userIdCookies, setUserIdCookie, removeUserIdCookie] = useCookies(['userId']);
+
   function handleClick() {
     const roomId = addNewRoom();
-    addNewUser(roomId);
+    addNewUser(roomId).then(function(user) {setUserIdCookie('userId',user.id)});
     history.push("/"+ roomId);
   }
 
@@ -64,6 +67,7 @@ function CreateRoomButton()  {
 
 function JoinRoomIDForm() {
   const [roomId, setRoomid] = useState('');
+  const [userIdCookies, setUserIdCookie, removeUserIdCookie] = useCookies(['userId']);
   let history = useHistory();
 
   function handleChange(event) {
@@ -72,7 +76,7 @@ function JoinRoomIDForm() {
 
   function handleSubmit(event) {
     roomExists(roomId).then(exists => {if (exists) {
-      addNewUser(roomId);
+      addNewUser(roomId).then(function(user) {setUserIdCookie('userId',user.id)});
       history.push("/"+ roomId);
     } else {
       alert('Room does not exist')
@@ -94,18 +98,20 @@ function JoinRoomIDForm() {
 
 //Generate a random ID, check there isn't already an instance of it and if not create a new room with that ID
 function addNewRoom() {
-  var db = firebase.firestore();
+  const db = firebase.firestore();
   const roomId = getRoomId();
   db.collection("rooms").doc(roomId).set({ });
   return roomId;
 }
 
 //Add a new user with server generated unique ID, and the given room ID to the database
+//Returns the unique server generated ID
 function addNewUser(roomId) {
-  var db = firebase.firestore();
-  db.collection("users").doc().set({
+  const db = firebase.firestore();
+  const users = db.collection("users");
+  return users.add({
     roomId: roomId
-  })
+  });
 }
 
 //Generate a new unique room ID
@@ -142,7 +148,33 @@ function roomExists(roomId){
   });
 }
 
+//==============================================================================
+//                              Game Page
+//==============================================================================
 
+function GamePage() {
+  const [playerReady, setPlayerReady] = useState(false);
+  
+    if (playerReady){
+      return (
+        <div>
+      <EnterName />
+      </div>
+      )
+    } else {
+      return (
+        <div>
+      <Game />
+      </div>
+      )
+    }
+}
 
+function EnterName() {
+  return (<div></div>);
+}
 
+function Game() {
+  return (<div></div>);
+}
 export default App;
