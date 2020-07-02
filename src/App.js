@@ -260,13 +260,14 @@ function Game() {
     <h1>
     {roomId}
     </h1>
-    <Dice roomId={roomId}/>
-    
+    <Dice />
+    <ScoreSheet />
   </div>);
 }
 
-function Dice(props){
+function Dice(){
   var db = firebase.firestore();
+  const {roomId} = useParams();
   const [retrievedDice,setRetrievedDice] = useState(false);
   const [diceValues, setDiceValues] = useState([0,0,0,0,0]);
   const [diceToBeKept, setDiceToBeKept] = useState([false,false,false,false,false]);
@@ -288,7 +289,7 @@ function Dice(props){
       </div>
   );
     }else{
-      db.collection("rooms").doc(props.roomId).get().then(function(doc){
+      db.collection("rooms").doc(roomId).get().then(function(doc){
         setDiceValues(doc.data().dice);
         setRetrievedDice(true);
       });
@@ -326,6 +327,72 @@ function CheckBox(props) {
       ? e.target.checked 
       : item ))}}/>
   )
+}
+
+function ScoreSheet() {
+  var db = firebase.firestore();
+  const {roomId} = useParams();
+  const [users,setUsers] = useState([]);
+  
+  useEffect(()=>{
+    let newUsers = [];
+    db.collection("users").where("roomId","==",roomId).onSnapshot( function(querySnapshot){
+      querySnapshot.docChanges().forEach(function(changed) { if(changed.type === "added"){
+        newUsers = newUsers.concat(changed.doc.data());
+      }
+    });
+    setUsers(newUsers);
+  });
+  },[roomId,db]);
+  return (
+    <table>
+    <tr>
+      <td>
+        Name
+      </td>
+      <td>
+        Add only Aces
+      </td>
+      <td>
+        Add only Twos
+      </td>
+      <td>
+        Add only Threes
+      </td>
+      <td>
+        Add only Fours
+      </td>
+      <td>
+        Add only Fives
+      </td>
+      <td>
+        Add only Sixes
+      </td>
+      
+    </tr>
+    {users.map((user) => {
+      return (
+    <ScoreColumn user={user}/>
+    );
+  })}
+</table>
+  );
+}
+function ScoreColumn(props) {
+  return (
+<tr>
+<td>
+{props.user.name}
+</td>
+{ props.user.score.addOnly.map( (addOnlyX) => {
+          return (
+            <td>
+                {addOnlyX}
+            </td>
+          );
+        })}
+</tr>
+  );
 }
 
 export default App;
