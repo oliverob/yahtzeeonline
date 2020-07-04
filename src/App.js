@@ -262,7 +262,7 @@ function Game() {
   const [turn, setTurn] = useState("");
   const [diceValues, setDiceValues] = useState([0,0,0,0,0]);
   const userId = sessionStorage.getItem("userId");
-  const [numOfRolls, setNumOfRolls] = useState(0);
+  const [numOfRolls, setNumOfRolls] = useState(sessionStorage.getItem("numOfRolls")||0);
 
   useEffect( () => {
     db.collection("users").where("roomId","==",roomId).onSnapshot( function(querySnapshot){
@@ -270,10 +270,13 @@ function Game() {
     });
     db.collection("rooms").doc(roomId).onSnapshot( function(doc){
         setDiceValues(doc.data().diceValues);
-        setNumOfRolls(doc.data().numOfRolls);
         setTurn(doc.data().turn);
     });
   },[roomId,db]);
+
+  useEffect(() =>{
+    sessionStorage.setItem("numOfRolls",numOfRolls);
+  },[numOfRolls]);
   
   
 
@@ -281,8 +284,7 @@ function Game() {
   function setNextTurn(nextUser) {
     setTurn(nextUser);
     db.collection("rooms").doc(roomId).update({
-      turn: nextUser,
-      numOfRolls:0
+      turn: nextUser
     })
   }
 
@@ -296,23 +298,23 @@ function Game() {
           } else {
             setNextTurn(users[0].id);
           }
-          db.collection("rooms").doc(roomId).update({
-            diceValues: diceValues.map((item, index) => 
-            diceToBeKept[index]
-            ? item
-            : randomRoll[index]  ),
-            numOfRolls: 0
-          });
         }
       });
+      db.collection("rooms").doc(roomId).update({
+        diceValues: diceValues.map((item, index) => 
+        diceToBeKept[index]
+        ? item
+        : randomRoll[index]  )
+      });
+      setNumOfRolls(0);
     } else {
       db.collection("rooms").doc(roomId).update({
         diceValues: diceValues.map((item, index) => 
         diceToBeKept[index]
         ? item
         : randomRoll[index]  ),
-        numOfRolls: numOfRolls + 1
       });
+      setNumOfRolls(n => n + 1);
     }
     event.preventDefault();
   }
