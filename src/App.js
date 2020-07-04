@@ -55,9 +55,10 @@ function CreateRoomButton()  {
   let history = useHistory();
   
 
-  function handleClick() {
+  function handleClick(event) {
     const roomId = addNewRoom();
     moveToRoom(roomId,history);
+    event.preventDefault();
   }
 
   return (
@@ -106,7 +107,9 @@ function addNewRoom() {
   const db = firebase.firestore();
   const roomId = getRoomId();
   db.collection("rooms").doc(roomId).set({ 
-    dice: [0,0,0,0,0]
+    diceValues: [0,0,0,0,0],
+    turn: "",
+    numOfRolls:0
   });
   return roomId;
 }
@@ -255,54 +258,98 @@ function addNewUser(roomId,name) {
 //=================================Game=======================================
 
 function Game() {
+  var db = firebase.firestore();
   const {roomId} = useParams();
+  const [users,setUsers] = useState([]);
+  const [turn, setTurn] = useState("");
+  const [diceValues, setDiceValues] = useState([0,0,0,0,0]);
+  const userId = cookies.get("userId");
+  const [numOfRolls, setNumOfRolls] = useState(0);
+
+  useEffect( () => {
+    db.collection("users").where("roomId","==",roomId).onSnapshot( function(querySnapshot){
+      setUsers(querySnapshot.docs.map((user) => { return user; }));
+    });
+    db.collection("rooms").doc(roomId).onSnapshot( function(doc){
+        setDiceValues(doc.data().diceValues);
+        setNumOfRolls(doc.data().numOfRolls);
+        setTurn(doc.data().turn);
+    });
+  },[roomId,db]);
+  
+  
+
+  //Updates the local turn state and the database turn state
+  function setNextTurn(nextUser) {
+    alert("setting next turn to:" + nextUser);
+    setTurn(nextUser);
+    db.collection("rooms").doc(roomId).update({
+      turn: nextUser,
+      numOfRolls:0
+    })
+  }
+
+  function rollDice(event,diceToBeKept) {
+    const randomRoll = Array.from({length: 5}, () => Math.floor(Math.random() * 6));
+    if(numOfRolls >= 2) {
+      users.forEach( (user, index) =>{
+        if(user.id === userId){
+          if(index < users.length-1){
+            setNextTurn(users[index +1].id);
+          } else {
+            setNextTurn(users[0].id);
+          }
+          db.collection("rooms").doc(roomId).update({
+            diceValues: diceValues.map((item, index) => 
+            diceToBeKept[index]
+            ? item
+            : randomRoll[index]  ),
+            numOfRolls: 0
+          });
+        }
+      });
+    } else {
+      db.collection("rooms").doc(roomId).update({
+        diceValues: diceValues.map((item, index) => 
+        diceToBeKept[index]
+        ? item
+        : randomRoll[index]  ),
+        numOfRolls: numOfRolls + 1
+      });
+    }
+    event.preventDefault();
+  }
+  
   return (<div>
     <h1>
     {roomId}
     </h1>
-    <Dice />
-    <ScoreSheet />
+    <Dice rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId} userId={userId}/>
+    <ScoreSheet users={users} setUsers={setUsers}/>
+    <StartGame users={users} setNextTurn={setNextTurn}/>
   </div>);
 }
 
-function Dice(){
-  var db = firebase.firestore();
-  const {roomId} = useParams();
-  const [retrievedDice,setRetrievedDice] = useState(false);
-  const [diceValues, setDiceValues] = useState([0,0,0,0,0]);
+
+function Dice(props){
   const [diceToBeKept, setDiceToBeKept] = useState([false,false,false,false,false]);
   
-  
-  //const diceValues = Array.from({length: 5}, () => Math.floor(Math.random() * 6));
-  if(retrievedDice) {
   return (<div>
     <div>
-      {diceValues.map((value, index) => {
+      {props.diceValues.map((value, index) => {
         return (
           <div>
         <Die key={"Dice" + index} value={value}/>
-        <CheckBox key={"Check" + index} index ={index}value={diceToBeKept[index]} setDiceToBeKept={setDiceToBeKept} diceToBeKept={diceToBeKept}/>
+        <CheckBox key={"Check" + index} index ={index} setDiceToBeKept={setDiceToBeKept} diceToBeKept={diceToBeKept}/>
         </div>);
       })}
       </div>
-      <button onClick = {rollDice}>Roll</button>
+      <button onClick = {(event) => {props.rollDice(event,diceToBeKept)}} disabled={!props.myTurn}>Roll</button>
       </div>
   );
-    }else{
-      db.collection("rooms").doc(roomId).get().then(function(doc){
-        setDiceValues(doc.data().dice);
-        setRetrievedDice(true);
-      });
-      return null;
-    }
+    
 
-    function rollDice() {
-      const randomRoll = Array.from({length: 5}, () => Math.floor(Math.random() * 6));
-      setDiceValues(diceValues.map((item, index) => 
-      diceToBeKept[index]
-      ? item
-      : randomRoll[index]  ));
-    }
+    
 }
 
 function Die(props){
@@ -320,30 +367,15 @@ function Die(props){
 }
 
 function CheckBox(props) {
-
   return (
-    <input type="checkbox" checked={props.value} onChange={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
+    <input type="checkbox" checked={props.diceToBeKept[props.index]} onChange={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
       index === props.index 
       ? e.target.checked 
       : item ))}}/>
   )
 }
 
-function ScoreSheet() {
-  var db = firebase.firestore();
-  const {roomId} = useParams();
-  const [users,setUsers] = useState([]);
-  
-  useEffect(()=>{
-    let newUsers = [];
-    db.collection("users").where("roomId","==",roomId).onSnapshot( function(querySnapshot){
-      querySnapshot.docChanges().forEach(function(changed) { if(changed.type === "added"){
-        newUsers = newUsers.concat(changed.doc.data());
-      }
-    });
-    setUsers(newUsers);
-  });
-  },[roomId,db]);
+function ScoreSheet(props) {
   return (
     <table>
     <tr>
@@ -368,11 +400,10 @@ function ScoreSheet() {
       <td>
         Add only Sixes
       </td>
-      
     </tr>
-    {users.map((user) => {
+    {props.users.map((user) => {
       return (
-    <ScoreColumn user={user}/>
+    <ScoreColumn userData={user.data()}/>
     );
   })}
 </table>
@@ -382,9 +413,9 @@ function ScoreColumn(props) {
   return (
 <tr>
 <td>
-{props.user.name}
+{props.userData.name}
 </td>
-{ props.user.score.addOnly.map( (addOnlyX) => {
+{ props.userData.score.addOnly.map( (addOnlyX) => {
           return (
             <td>
                 {addOnlyX}
@@ -395,4 +426,15 @@ function ScoreColumn(props) {
   );
 }
 
+//Button which when clicked sets a random player to take the first turn
+function StartGame(props){
+  
+  function handleClick(e) {
+    props.setNextTurn(props.users[Math.floor(Math.random() * props.users.length)].id);
+    e.preventDefault(true);
+  }
+  return (
+    <button onClick={handleClick}>Start Game</button>
+  )
+}
 export default App;
