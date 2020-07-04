@@ -7,10 +7,8 @@ import { useState , useEffect} from 'react';
 import * as firebase from 'firebase/app';
 import "firebase/analytics";
 import "firebase/firestore";
-import Cookies from 'universal-cookie';
 
 
-const cookies = new Cookies();
 
 function App() {
   const firebaseConfig = {
@@ -98,7 +96,7 @@ function JoinRoomIDForm() {
 }
 
 function moveToRoom(roomId, history) {
-  cookies.set('roomId',roomId);
+  sessionStorage.setItem('roomId',roomId);
   history.push("/"+ roomId);
 }
 
@@ -160,12 +158,12 @@ function GamePage() {
 
   //Assume the user ID is for a different room so it loads the Enter Name page before the Game page by default as the other way round is messy
   const [userIdExistsButWrongRoom, setUserIdExistsButWrongRoom] = useState(true);
-  const userId = cookies.get('userId');
+  const userId = sessionStorage.getItem('userId');
 
   //Checks everytime a state is updated, if the user ID is still for the wrong room
   //This is mainly used to redirect when you first land on the page if you have the correct room ID but has to be in a useEffect loop as you have to wait for the promise to resolve which can't happen before the first render
   useEffect(() => {
-    if(!(typeof(userId)==="undefined")){
+    if(!(userId===null)){
     db.collection("users").doc(userId).get().then(function(doc){
       if(doc.data().roomId === roomId){
           setUserIdExistsButWrongRoom(false);
@@ -175,10 +173,10 @@ function GamePage() {
   }, [db,roomId,userId]);
 
   //Checks you have been at least intially directed here by the first page (guaranteeing that a room has been created in the database)
-  if(cookies.get('roomId')===roomId){
+  if(sessionStorage.getItem('roomId')===roomId){
     //Checks if the user ID has been set yet
     //If it is undefined then it hasn't been so go to Enter Name
-    if(typeof(userId)==="undefined"){
+    if(userId===null){
       return (
         <div>
         <EnterName userExists = {setUserIdExistsButWrongRoom}/>
@@ -217,7 +215,7 @@ function EnterName(props) {
   //Triggered when the form is submitted
   function handleSubmit(event) {
     addNewUser(roomId,name).then(function(user) {
-      cookies.set('userId',user.id);
+      sessionStorage.setItem('userId',user.id);
       props.userExists(false);
     });
     //IMPORTANT without preventing the default setting a confusing bug occurs where the page reloads before the promise resolves
@@ -263,7 +261,7 @@ function Game() {
   const [users,setUsers] = useState([]);
   const [turn, setTurn] = useState("");
   const [diceValues, setDiceValues] = useState([0,0,0,0,0]);
-  const userId = cookies.get("userId");
+  const userId = sessionStorage.getItem("userId");
   const [numOfRolls, setNumOfRolls] = useState(0);
 
   useEffect( () => {
@@ -377,7 +375,7 @@ function CheckBox(props) {
 
 function ScoreSheet(props) {
   return (
-    <table>
+    <table><thead>
     <tr>
       <td>
         Name
@@ -401,11 +399,15 @@ function ScoreSheet(props) {
         Add only Sixes
       </td>
     </tr>
+    </thead>
+    <tbody>
     {props.users.map((user) => {
       return (
     <ScoreColumn userData={user.data()}/>
     );
+    
   })}
+  </tbody>
 </table>
   );
 }

@@ -7,6 +7,12 @@ table {
 table tr {
 	display: table-cell;
 }
+table tbody{
+	display: table-cell;
+}
+table thead {
+	display: table-cell;
+}
 table tr td {
 	display: block;
 }
