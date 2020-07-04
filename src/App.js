@@ -279,7 +279,6 @@ function Game() {
 
   //Updates the local turn state and the database turn state
   function setNextTurn(nextUser) {
-    alert("setting next turn to:" + nextUser);
     setTurn(nextUser);
     db.collection("rooms").doc(roomId).update({
       turn: nextUser,
