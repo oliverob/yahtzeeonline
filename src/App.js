@@ -266,7 +266,7 @@ function Game() {
 
   useEffect( () => {
     db.collection("users").where("roomId","==",roomId).onSnapshot( function(querySnapshot){
-      setUsers(querySnapshot.docs.map((user) => { return user; }));
+      setUsers(querySnapshot.docs.map((user) => { return [user.id,user.data()]; }));
     });
     db.collection("rooms").doc(roomId).onSnapshot( function(doc){
         setDiceValues(doc.data().diceValues);
@@ -291,12 +291,12 @@ function Game() {
   function rollDice(event,diceToBeKept) {
     const randomRoll = Array.from({length: 5}, () => Math.floor(Math.random() * 6));
     if(numOfRolls >= 2) {
-      users.forEach( (user, index) =>{
-        if(user.id === userId){
+      users.forEach( ([Id,userData], index) =>{
+        if(Id === userId){
           if(index < users.length-1){
-            setNextTurn(users[index +1].id);
+            setNextTurn(users[index +1][0]);
           } else {
-            setNextTurn(users[0].id);
+            setNextTurn(users[0][0]);
           }
         }
       });
@@ -324,7 +324,7 @@ function Game() {
     {roomId}
     </h1>
     <Dice rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId} userId={userId}/>
-    <ScoreSheet users={users} setUsers={setUsers}/>
+    <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers}/>
     <StartGame users={users} setNextTurn={setNextTurn}/>
   </div>);
 }
@@ -404,23 +404,66 @@ function ScoreSheet(props) {
     <tbody>
     {props.users.map((user) => {
       return (
-    <ScoreColumn userData={user.data()}/>
+    <ScoreColumn diceValues={props.diceValues} user={user} setUsers={props.setUsers}/>
     );
-    
   })}
   </tbody>
 </table>
   );
 }
+
+
+
 function ScoreColumn(props) {
+  function addScore(key,index) {
+   props.setUsers(users => users.map(([id,user])=>{
+    if(id === props.user[0]) {
+      return [id,Object.fromEntries(Object.entries(user).map(
+        ([entryKey,entryValue]) => {
+        if(entryKey === "score") {
+          return ["score", Object.fromEntries(Object.entries(entryValue).map(([scoreKey,scoreValue]) => {
+              if(scoreKey===key) {
+                return [scoreKey, calculateScore(scoreValue,key,index)];
+              } else {
+                return [scoreKey,scoreValue]
+              }
+          }))]
+          } else {
+            return [entryKey,entryValue]
+          }
+      }))]}
+     else { 
+      return [id,user];
+    }})
+   );
+  }
+
+  function calculateScore(currentScore,key,index) {
+    switch(key) {
+      case 'addOnly':
+        return props.diceValues.map((value,i)=> i === index ? props.diceValues.reduce(sumAddOnly,0) + currentScore[i]: currentScore[i]);
+      default:
+        alert("Error calculating score");
+        return 0;
+    }
+
+    function sumAddOnly(total, currentValue,j,originalScores) {
+      if(originalScores[j] === index) {
+        return total + originalScores[j] + 1;
+      } else {
+        return total;
+      }
+    }
+  }
+  
   return (
 <tr>
 <td>
-{props.userData.name}
+{props.user[1].name}
 </td>
-{ props.userData.score.addOnly.map( (addOnlyX) => {
+{ props.user[1].score.addOnly.map( (addOnlyX,index) => {
           return (
-            <td>
+            <td onClick = {(event)=>{addScore('addOnly',index)}}>
                 {addOnlyX}
             </td>
           );
@@ -433,7 +476,7 @@ function ScoreColumn(props) {
 function StartGame(props){
   
   function handleClick(e) {
-    props.setNextTurn(props.users[Math.floor(Math.random() * props.users.length)].id);
+    props.setNextTurn(props.users[Math.floor(Math.random() * props.users.length)][0]);
     e.preventDefault(true);
   }
   return (
