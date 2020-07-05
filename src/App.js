@@ -105,7 +105,7 @@ function addNewRoom() {
   const db = firebase.firestore();
   const roomId = getRoomId();
   db.collection("rooms").doc(roomId).set({ 
-    diceValues: [0,0,0,0,0],
+    diceValues: ["","","","",""],
     turn: "",
     numOfRolls:0
   });
@@ -239,7 +239,7 @@ function addNewUser(roomId,name) {
     roomId: roomId,
     name: name,
     score:{
-      addOnly: [1,2,3,4,5,6],
+      addOnly: [0,0,0,0,0,0],
       threeOfAKind: 0,
       fourOfAKind: 0,
       fullHouse:0,
@@ -266,7 +266,8 @@ function Game() {
 
   useEffect( () => {
     db.collection("users").where("roomId","==",roomId).onSnapshot( function(querySnapshot){
-      setUsers(querySnapshot.docs.map((user) => { return [user.id,user.data()]; }));
+      setUsers(Object.fromEntries(querySnapshot.docs.map((user) => { 
+        return [user.id ,user.data()]; })));
     });
     db.collection("rooms").doc(roomId).onSnapshot( function(doc){
         setDiceValues(doc.data().diceValues);
@@ -278,7 +279,14 @@ function Game() {
     sessionStorage.setItem("numOfRolls",numOfRolls);
   },[numOfRolls]);
   
-  
+  useEffect(()=>{
+    const user = users[userId];
+    if(users.length !== 0){
+    db.collection("users").doc(userId).update({ 
+      score: user.score
+     });
+    }
+  },[db,users,userId]);
 
   //Updates the local turn state and the database turn state
   function setNextTurn(nextUser) {
@@ -297,29 +305,34 @@ function Game() {
       ? item
       : randomRoll[index]  ),
     });
-    setNumOfRolls(n => n + 1);
+    setNumOfRolls(n => parseFloat(n) + 1);
     event.preventDefault();
   }
   
   function EndTurn() {
-    users.forEach( ([Id,userData], index) =>{
-      if(Id === userId){
+    Object.entries(users).forEach( ([id,userData], index) =>{
+      if(id === userId){
         if(index < users.length-1){
-          setNextTurn(users[index +1][0]);
+          setNextTurn(Object.keys(users)[index +1]);
         } else {
-          setNextTurn(users[0][0]);
+          setNextTurn(Object.keys(users)[0]);
         }
       }
     });
     setNumOfRolls(0);
+    //Reset the dice
+    db.collection("rooms").doc(roomId).update({
+      diceValues: diceValues.map((item, index) => 
+      "" ),
+    });
   }
 
   return (<div>
     <h1>
     {roomId}
     </h1>
-    <Dice rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId && numOfRolls < 2} userId={userId}/>
-    <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers} userId={userId} EndTurn={EndTurn} pickScore={turn === userId && numOfRolls >= 2} />
+    <Dice rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId && numOfRolls < 3} userId={userId}/>
+    <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers} userId={userId} EndTurn={EndTurn} pickScore={turn === userId && numOfRolls >= 3} />
     <StartGame users={users} setNextTurn={setNextTurn}/>
   </div>);
 }
@@ -397,7 +410,7 @@ function ScoreSheet(props) {
     </tr>
     </thead>
     <tbody>
-    {props.users.map((user) => {
+    {Object.entries(props.users).map((user) => {
       return (
     <ScoreColumn diceValues={props.diceValues} user={user} setUsers={props.setUsers} userId={props.userId} EndTurn={props.EndTurn} pickScore={props.pickScore} />
     );
@@ -413,7 +426,7 @@ function ScoreColumn(props) {
 
 
   function addScore(key,index) {
-   props.setUsers(users => users.map(([id,user])=>{
+   props.setUsers(users => Object.fromEntries(Object.entries(users).map(([id,user])=>{
     if(id === props.user[0]) {
       return [id,Object.fromEntries(Object.entries(user).map(
         ([entryKey,entryValue]) => {
@@ -431,14 +444,14 @@ function ScoreColumn(props) {
       }))]}
      else { 
       return [id,user];
-    }})
+    }}))
    );
   }
 
   function calculateScore(currentScore,key,index) {
     switch(key) {
       case 'addOnly':
-        return props.diceValues.map((value,i)=> i === index ? props.diceValues.reduce(sumAddOnly,0) + currentScore[i]: currentScore[i]);
+        return props.diceValues.map((value,i)=> i === index ? props.diceValues.reduce(sumAddOnly,0): currentScore[i]);
       default:
         alert("Error calculating score");
         return 0;
@@ -456,12 +469,13 @@ function ScoreColumn(props) {
   return (
 <tr>
 <td>
+
 {props.user[1].name}
 </td>
 { props.user[1].score.addOnly.map( (addOnlyX,index) => {
           return (
             <td onClick = {(event)=>{
-            if(props.pickScore){
+            if(props.pickScore && props.user[0]===props.userId){
               addScore('addOnly',index);
               props.EndTurn();
             }}}>
@@ -475,13 +489,14 @@ function ScoreColumn(props) {
 
 //Button which when clicked sets a random player to take the first turn
 function StartGame(props){
-  
+  const [disabled,setDisabled] = useState(false);
   function handleClick(e) {
-    props.setNextTurn(props.users[Math.floor(Math.random() * props.users.length)][0]);
+    props.setNextTurn(Object.keys(props.users)[Math.floor(Math.random() * Object.keys(props.users).length)]);
+    setDisabled(true);
     e.preventDefault(true);
   }
   return (
-    <button onClick={handleClick}>Start Game</button>
+    <button onClick={handleClick} disabled={disabled}>Start Game</button>
   )
 }
 export default App;
