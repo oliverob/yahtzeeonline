@@ -239,15 +239,15 @@ function addNewUser(roomId,name) {
     roomId: roomId,
     name: name,
     score:{
-      addOnly: [0,0,0,0,0,0],
-      threeOfAKind: 0,
-      fourOfAKind: 0,
-      fullHouse:0,
-      smallStraight:0,
-      largeStraight:0,
-      yahtzee: 0,
-      chance: 0,
-      bonusYahtzee: [0,0,0]
+      addOnly: ["-","-","-","-","-","-"],
+      threeOfAKind: ["-"],
+      fourOfAKind: ["-"],
+      fullHouse:["-"],
+      smallStraight:["-"],
+      largeStraight:["-"],
+      yahtzee: ["-"],
+      chance: ["-"],
+      bonusYahtzee: ["-"]
     }
   });
   
@@ -263,6 +263,7 @@ function Game() {
   const [diceValues, setDiceValues] = useState([0,0,0,0,0]);
   const userId = sessionStorage.getItem("userId");
   const [numOfRolls, setNumOfRolls] = useState(sessionStorage.getItem("numOfRolls")||0);
+  const [diceToBeKept, setDiceToBeKept] = useState([false,false,false,false,false]);
 
   useEffect( () => {
     db.collection("users").where("roomId","==",roomId).onSnapshot( function(querySnapshot){
@@ -320,6 +321,7 @@ function Game() {
       }
     });
     setNumOfRolls(0);
+    setDiceToBeKept([false,false,false,false,false]);
     //Reset the dice
     db.collection("rooms").doc(roomId).update({
       diceValues: diceValues.map((item, index) => 
@@ -331,15 +333,14 @@ function Game() {
     <h1>
     {roomId}
     </h1>
-    <Dice rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId && numOfRolls < 3} userId={userId}/>
+    <Dice diceToBeKept={diceToBeKept} setDiceToBeKept={setDiceToBeKept} rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId && numOfRolls < 3} userId={userId}/>
     <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers} userId={userId} EndTurn={EndTurn} pickScore={turn === userId && numOfRolls >= 3} />
-    <StartGame users={users} setNextTurn={setNextTurn}/>
+    <StartGame users={users} setNextTurn={setNextTurn} setNumOfRolls={setNumOfRolls}/>
   </div>);
 }
 
 
 function Dice(props){
-  const [diceToBeKept, setDiceToBeKept] = useState([false,false,false,false,false]);
   
   return (<div>
     <div>
@@ -347,11 +348,11 @@ function Dice(props){
         return (
           <div>
         <Die key={"Dice" + index} value={value}/>
-        <CheckBox key={"Check" + index} index ={index} setDiceToBeKept={setDiceToBeKept} diceToBeKept={diceToBeKept}/>
+        <CheckBox key={"Check" + index} index ={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept}/>
         </div>);
       })}
       </div>
-      <button onClick = {(event) => {props.rollDice(event,diceToBeKept)}} disabled={!props.myTurn}>Roll</button>
+      <button onClick = {(event) => {props.rollDice(event,props.diceToBeKept)}} disabled={!props.myTurn}>Roll</button>
       </div>
   );
     
@@ -407,6 +408,30 @@ function ScoreSheet(props) {
       <td>
         Add only Sixes
       </td>
+      <td>
+        Three Of A Kind
+      </td>
+      <td>
+        Four Of A Kind
+      </td>
+      <td>
+        Full House
+      </td>
+      <td>
+        Small Straight
+      </td>
+      <td>
+        Large Straight
+      </td>
+      <td>
+        Yahtzee
+      </td>
+      <td>
+        Chance
+      </td>
+      <td>
+        Bonus Yahtzee
+      </td>
     </tr>
     </thead>
     <tbody>
@@ -423,13 +448,12 @@ function ScoreSheet(props) {
 
 
 function ScoreColumn(props) {
-
+  const setOrder = ["addOnly","threeOfAKind","fourOfAKind","fullHouse","smallStraight","largeStraight","yahtzee","chance","bonusYahtzee"];
 
   function addScore(key,index) {
    props.setUsers(users => Object.fromEntries(Object.entries(users).map(([id,user])=>{
     if(id === props.user[0]) {
-      return [id,Object.fromEntries(Object.entries(user).map(
-        ([entryKey,entryValue]) => {
+      return [id,Object.fromEntries(Object.entries(user).map(([entryKey,entryValue]) => {
         if(entryKey === "score") {
           return ["score", Object.fromEntries(Object.entries(entryValue).map(([scoreKey,scoreValue]) => {
               if(scoreKey===key) {
@@ -451,7 +475,23 @@ function ScoreColumn(props) {
   function calculateScore(currentScore,key,index) {
     switch(key) {
       case 'addOnly':
-        return props.diceValues.map((value,i)=> i === index ? props.diceValues.reduce(sumAddOnly,0): currentScore[i]);
+        return currentScore.map((value,i)=> i === index ? props.diceValues.reduce(sumAddOnly,0): value);
+      case 'threeOfAKind':
+        return threeOfAKind() ? [props.diceValues.reduce((total,v)=>total + v + 1)]: [0];
+      case 'fourOfAKind':
+        return fourOfAKind() ? [props.diceValues.reduce((total,v)=>total + v + 1)]: [0];
+      case 'fullHouse':
+        return fullHouse() ? [25] :[0];
+      case 'smallStraight':
+        return smallStraight() ? [30] : [0];
+      case 'largeStraight':
+        return largeStraight() ? [40] : [0];
+      case 'chance':
+        return [props.diceValues.reduce((total,v)=>total + v + 1)];
+      case 'yahtzee':
+        return yahtzee() ? [50]:[0];
+      case 'bonusYahtzee':
+        return bonusYahtzee() ? [100] :[0];
       default:
         alert("Error calculating score");
         return 0;
@@ -464,6 +504,98 @@ function ScoreColumn(props) {
         return total;
       }
     }
+    
+    function threeOfAKind() {
+      return props.diceValues.some((dieValue)=>{
+        if(props.diceValues.reduce((total,v)=>(
+          v === dieValue ? total +1:total
+        ))>=3){
+          return true;
+        } else {
+          return false;
+        }
+      });
+    }
+    function fourOfAKind() {
+      return props.diceValues.some((dieValue)=>{
+        if(props.diceValues.reduce((total,v)=>(
+          v === dieValue ? total +1:total
+        ))>=4){
+          return true;
+        } else {
+          return false;
+        }
+      });
+    }
+    function fullHouse() {
+      return props.diceValues.some((dieValue)=>{
+        if(props.diceValues.reduce((total,v)=>(
+          v === dieValue ? total +1:total
+        ))>=3){
+          const possiblePair = props.diceValues.filter((element)=>{
+            return element !== dieValue
+          });
+          if(possiblePair[0]===possiblePair[1]){
+            return true;
+          } else {
+            return false;
+          }
+        } else {
+          return false;
+        }
+      });
+    }
+  
+    function smallStraight() {
+      const sorted = props.diceValues.sort();
+      if(JSON.stringify(sorted.slice(1))===JSON.stringify([0,1,2,3])){
+        return true;
+      }
+      if(JSON.stringify(sorted.slice(1))===JSON.stringify([1,2,3,4])){
+        return true;
+      }
+      if(JSON.stringify(sorted.slice(1))===JSON.stringify([2,3,4,5])){
+        return true;
+      }
+      if(JSON.stringify(sorted.slice(0,4))===JSON.stringify([0,1,2,3])){
+        return true;
+      }
+      if(JSON.stringify(sorted.slice(0,4))===JSON.stringify([1,2,3,4])){
+        return true;
+      }
+      if(JSON.stringify(sorted.slice(0,4))===JSON.stringify([2,3,4,5])){
+        return true;
+      }
+      return false;
+    }
+
+    function largeStraight() {
+      const sorted = props.diceValues.sort();
+      if(JSON.stringify(sorted) ===JSON.stringify([0,1,2,3,4])){
+        return true;
+      } 
+      if(JSON.stringify(sorted)===JSON.stringify([1,2,3,4,5])){
+        return true;
+      }
+      return false;
+    }
+    function yahtzee() {
+      return props.diceValues.some((dieValue)=>{
+        if(props.diceValues.reduce((total,v)=>(
+          v === dieValue ? total +1:total))>=5){
+          return true;
+        } else {
+          return false;
+        }
+      });
+    }
+    function bonusYahtzee() {
+      if(props.user[1].score.yahtzee === "-"){
+        return false;
+      } else {
+        return yahtzee();
+      }
+    }
   }
   
   return (
@@ -472,17 +604,22 @@ function ScoreColumn(props) {
 
 {props.user[1].name}
 </td>
-{ props.user[1].score.addOnly.map( (addOnlyX,index) => {
-          return (
-            <td onClick = {(event)=>{
-            if(props.pickScore && props.user[0]===props.userId){
-              addScore('addOnly',index);
-              props.EndTurn();
-            }}}>
-                {addOnlyX}
-            </td>
-          );
-        })}
+{ Object.entries(props.user[1].score).sort(function([a,c], [b,d]){  
+  return setOrder.indexOf(a) - setOrder.indexOf(b);
+}).map(([key,value])=>{
+  return value.map( (innerValue,index) => {
+    return (
+      <td onClick = {(event)=>{
+      if(props.pickScore && props.user[0]===props.userId && innerValue ==="-"){
+        addScore(key,index);
+        props.EndTurn();
+      }}}>
+          {innerValue}
+      </td>
+    );
+})
+})
+}
 </tr>
   );
 }
@@ -493,10 +630,13 @@ function StartGame(props){
   function handleClick(e) {
     props.setNextTurn(Object.keys(props.users)[Math.floor(Math.random() * Object.keys(props.users).length)]);
     setDisabled(true);
+    props.setNumOfRolls(0);
     e.preventDefault(true);
   }
   return (
     <button onClick={handleClick} disabled={disabled}>Start Game</button>
   )
 }
+
+//TODO: Bug where the numofRolls is carried across from a different game preventing it from starting
 export default App;
