@@ -290,41 +290,36 @@ function Game() {
 
   function rollDice(event,diceToBeKept) {
     const randomRoll = Array.from({length: 5}, () => Math.floor(Math.random() * 6));
-    if(numOfRolls >= 2) {
-      users.forEach( ([Id,userData], index) =>{
-        if(Id === userId){
-          if(index < users.length-1){
-            setNextTurn(users[index +1][0]);
-          } else {
-            setNextTurn(users[0][0]);
-          }
-        }
-      });
-      db.collection("rooms").doc(roomId).update({
-        diceValues: diceValues.map((item, index) => 
-        diceToBeKept[index]
-        ? item
-        : randomRoll[index]  )
-      });
-      setNumOfRolls(0);
-    } else {
-      db.collection("rooms").doc(roomId).update({
-        diceValues: diceValues.map((item, index) => 
-        diceToBeKept[index]
-        ? item
-        : randomRoll[index]  ),
-      });
-      setNumOfRolls(n => n + 1);
-    }
+    //Update the dice
+    db.collection("rooms").doc(roomId).update({
+      diceValues: diceValues.map((item, index) => 
+      diceToBeKept[index]
+      ? item
+      : randomRoll[index]  ),
+    });
+    setNumOfRolls(n => n + 1);
     event.preventDefault();
   }
   
+  function EndTurn() {
+    users.forEach( ([Id,userData], index) =>{
+      if(Id === userId){
+        if(index < users.length-1){
+          setNextTurn(users[index +1][0]);
+        } else {
+          setNextTurn(users[0][0]);
+        }
+      }
+    });
+    setNumOfRolls(0);
+  }
+
   return (<div>
     <h1>
     {roomId}
     </h1>
-    <Dice rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId} userId={userId}/>
-    <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers}/>
+    <Dice rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId && numOfRolls < 2} userId={userId}/>
+    <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers} userId={userId} EndTurn={EndTurn} pickScore={turn === userId && numOfRolls >= 2} />
     <StartGame users={users} setNextTurn={setNextTurn}/>
   </div>);
 }
@@ -404,7 +399,7 @@ function ScoreSheet(props) {
     <tbody>
     {props.users.map((user) => {
       return (
-    <ScoreColumn diceValues={props.diceValues} user={user} setUsers={props.setUsers}/>
+    <ScoreColumn diceValues={props.diceValues} user={user} setUsers={props.setUsers} userId={props.userId} EndTurn={props.EndTurn} pickScore={props.pickScore} />
     );
   })}
   </tbody>
@@ -415,6 +410,8 @@ function ScoreSheet(props) {
 
 
 function ScoreColumn(props) {
+
+
   function addScore(key,index) {
    props.setUsers(users => users.map(([id,user])=>{
     if(id === props.user[0]) {
@@ -463,7 +460,11 @@ function ScoreColumn(props) {
 </td>
 { props.user[1].score.addOnly.map( (addOnlyX,index) => {
           return (
-            <td onClick = {(event)=>{addScore('addOnly',index)}}>
+            <td onClick = {(event)=>{
+            if(props.pickScore){
+              addScore('addOnly',index);
+              props.EndTurn();
+            }}}>
                 {addOnlyX}
             </td>
           );
