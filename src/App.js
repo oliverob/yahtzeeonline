@@ -337,7 +337,7 @@ function Game() {
   function EndTurn() {
     Object.entries(users).forEach( ([id,userData], index) =>{
       if(id === userId){
-        if(index < users.length-1){
+        if(index < Object.keys(users).length-1){
           setNextTurn(Object.keys(users)[index +1]);
         } else {
           setNextTurn(Object.keys(users)[0]);
@@ -372,8 +372,7 @@ function Dice(props){
       {props.diceValues.map((value, index) => {
         return (
           <div className="col">
-        <Die key={"Dice" + index} value={value} index={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept}/>
-        {/* <CheckBox key={"Check" + index} index ={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept}/> */}
+        <Die key={"Dice" + index} value={value} index={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept} myTurn={props.myTurn}/>
         </div>
         );
       })}
@@ -396,7 +395,7 @@ function Die(props){
              'https://upload.wikimedia.org/wikipedia/commons/2/26/Dice-6-b.svg'];
   return(
     
-      <img className = {"dieImg " + ( props.diceToBeKept[props.index] ? "glow":"" )} src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
+      <img className = {"dieImg " + ( props.diceToBeKept[props.index] && props.myTurn ? "glow":"" )} src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
         index === props.index 
         ? !item
         : item ))}}/>
@@ -404,11 +403,6 @@ function Die(props){
   );
 }
 
-function CheckBox(props) {
-  return (
-    <input type="checkbox" checked={props.diceToBeKept[props.index]} />
-  )
-}
 
 function ScoreSheet(props) {
   return (
@@ -460,6 +454,11 @@ function ScoreSheet(props) {
       <td>
         Bonus Yahtzee
       </td>
+      <td>
+        <b>
+        Total
+        </b>
+      </td>
     </tr>
     
     {Object.entries(props.users).map((user) => {
@@ -477,6 +476,8 @@ function ScoreSheet(props) {
 
 function ScoreColumn(props) {
   const setOrder = ["addOnly","threeOfAKind","fourOfAKind","fullHouse","smallStraight","largeStraight","yahtzee","chance","bonusYahtzee"];
+  let total=0;
+
 
   function addScore(key,index) {
    props.setUsers(users => Object.fromEntries(Object.entries(users).map(([id,user])=>{
@@ -535,9 +536,9 @@ function ScoreColumn(props) {
     
     function threeOfAKind() {
       return props.diceValues.some((dieValue)=>{
-        if(props.diceValues.reduce((total,v)=>(
-          v === dieValue ? total +1:total
-        ))>=3){
+        if(props.diceValues.reduce((total,cur,index,src)=>(
+          src[index]  === dieValue ? total +1:total
+        ),0)>=3){
           return true;
         } else {
           return false;
@@ -546,9 +547,9 @@ function ScoreColumn(props) {
     }
     function fourOfAKind() {
       return props.diceValues.some((dieValue)=>{
-        if(props.diceValues.reduce((total,v)=>(
-          v === dieValue ? total +1:total
-        ))>=4){
+        if(props.diceValues.reduce((total,cur,index,src)=>(
+          src[index] === dieValue ? total +1:total
+        ),0)>=4){
           return true;
         } else {
           return false;
@@ -557,9 +558,9 @@ function ScoreColumn(props) {
     }
     function fullHouse() {
       return props.diceValues.some((dieValue)=>{
-        if(props.diceValues.reduce((total,v)=>(
-          v === dieValue ? total +1:total
-        ))>=3){
+        if(props.diceValues.reduce((total,cur,index,src)=>(
+          src[index] === dieValue ? total +1:total
+        ),0)>=3){
           const possiblePair = props.diceValues.filter((element)=>{
             return element !== dieValue
           });
@@ -575,26 +576,19 @@ function ScoreColumn(props) {
     }
   
     function smallStraight() {
-      const sorted = props.diceValues.sort();
-      if(JSON.stringify(sorted.slice(1))===JSON.stringify([0,1,2,3])){
+      
+
+      if([0,1,2,3].every(element => props.diceValues.includes(element))){
         return true;
       }
-      if(JSON.stringify(sorted.slice(1))===JSON.stringify([1,2,3,4])){
+      else if([1,2,3,4].every(element => props.diceValues.includes(element))){
         return true;
       }
-      if(JSON.stringify(sorted.slice(1))===JSON.stringify([2,3,4,5])){
+      else if([2,3,4,5].every(element => props.diceValues.includes(element))){
         return true;
-      }
-      if(JSON.stringify(sorted.slice(0,4))===JSON.stringify([0,1,2,3])){
-        return true;
-      }
-      if(JSON.stringify(sorted.slice(0,4))===JSON.stringify([1,2,3,4])){
-        return true;
-      }
-      if(JSON.stringify(sorted.slice(0,4))===JSON.stringify([2,3,4,5])){
-        return true;
-      }
+      }else {
       return false;
+      }
     }
 
     function largeStraight() {
@@ -609,8 +603,8 @@ function ScoreColumn(props) {
     }
     function yahtzee() {
       return props.diceValues.some((dieValue)=>{
-        if(props.diceValues.reduce((total,v)=>(
-          v === dieValue ? total +1:total))>=5){
+        if(props.diceValues.reduce((total,cur,index,src)=>(
+          src[index]  === dieValue ? total +1:total),0)>=5){
           return true;
         } else {
           return false;
@@ -618,7 +612,7 @@ function ScoreColumn(props) {
       });
     }
     function bonusYahtzee() {
-      if(props.user[1].score.yahtzee === "-"){
+      if(props.user[1].score.yahtzee === ["-"]){
         return false;
       } else {
         return yahtzee();
@@ -637,6 +631,9 @@ function ScoreColumn(props) {
   return setOrder.indexOf(a) - setOrder.indexOf(b);
 }).map(([key,value])=>{
   return value.map( (innerValue,index) => {
+    if(innerValue !== "-"){
+      total = total + innerValue;
+    }
     return (
       <td class={innerValue ==="-" && props.user[0]===props.userId && props.pickScore ? "clickable" : ""} onClick = {(event)=>{
       if(props.pickScore && props.user[0]===props.userId && innerValue ==="-"){
@@ -649,6 +646,9 @@ function ScoreColumn(props) {
 })
 })
 }
+<td>
+  {total}
+</td>
 </tr>
   );
 }
