@@ -1,5 +1,6 @@
 import React from 'react';
 import './App.css';
+import './widthme.css';
 import { Route, useParams } from 'react-router-dom';
 import { Switch} from 'react-router-dom';
 import { useHistory } from "react-router-dom";
@@ -23,7 +24,6 @@ function App() {
   };
   firebase.initializeApp(firebaseConfig);
   return (
-    <div>
       <Switch>
         <Route path = "/:roomId">
           <GamePage />
@@ -32,7 +32,6 @@ function App() {
           <EnterRoomIdPage />
         </Route>
       </Switch>
-    </div>
   );
 }
 
@@ -42,10 +41,23 @@ function App() {
 
 function EnterRoomIdPage() {
   return (
-    <div>
-      <CreateRoomButton />
-      <JoinRoomIDForm />
+    <div className ="container h-100">
+      <div className="row justify-content-center h-100 align-items-center">
+        <div className="col-md-auto">
+          <div className="row mb-5 justify-content-center">
+            <div className="col-auto">
+              <CreateRoomButton />
+            </div>
+          </div>
+          <div className="row centre-text">
+            <div className="col">
+                <JoinRoomIDForm />
+            </div>
+        </div>
+      </div>
     </div>
+  </div>
+    
   );
 }
 
@@ -60,7 +72,7 @@ function CreateRoomButton()  {
   }
 
   return (
-    <button onClick={handleClick}>
+    <button class="btn btn-primary"onClick={handleClick}>
         Create Room
     </button>
   );
@@ -85,11 +97,13 @@ function JoinRoomIDForm() {
 
   return (
     <form onSubmit={handleSubmit}>
-      <label>
+      <div className="form-group">
+      <label for="enterRoomCode">
         Room ID:
-        <textarea value={roomId} onChange={handleChange} />
-      </label>
-      <input type="submit" value="Submit" />
+        </label>
+      <input type="text" id="enterRoomCode" class="form-control" value={roomId} onChange={handleChange} placeholder="Enter a room code" />
+      </div>
+      <button type="submit" class="btn btn-primary">Submit</button>
     </form>
   );
   
@@ -178,24 +192,24 @@ function GamePage() {
     //If it is undefined then it hasn't been so go to Enter Name
     if(userId===null){
       return (
-        <div>
+       
         <EnterName userExists = {setUserIdExistsButWrongRoom}/>
-      </div>
+      
       );
     } else {
       //If there is a user ID set but it is for a different room then you need to generate a new user
         if(userIdExistsButWrongRoom){
           return (
-            <div>
+            
             <EnterName userExists = {setUserIdExistsButWrongRoom}/>
-          </div>
+          
           );
         } else {
           //If the correct Room is set and a user ID that corresponds to that room is set
           return (
-            <div>
+            
             <Game />
-            </div>);
+            );
         }
       }
   } else {
@@ -222,13 +236,23 @@ function EnterName(props) {
     event.preventDefault();
     return false;
   }
-  return (<form onSubmit={handleSubmit}>
-    <label>
-      Name:
-      <textarea value={name} onChange={handleChange} />
-    </label>
-    <input type="submit" value="Submit" />
-  </form>);
+  return (
+    <div className ="container h-100">
+      <div className="row justify-content-center h-100 align-items-center centre-text">
+        <div className="col-md-auto">
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+            <label>
+              Name:
+              </label>
+              <input type="text" className="form-control"value={name} onChange={handleChange} />
+              </div>
+            <button type="submit" className="btn btn-primary">Submit</button>
+          </form>
+        </div>
+      </div>
+     </div>
+  );
 }
 
 //Add a new user with server generated unique ID, and the given room ID to the database
@@ -329,13 +353,13 @@ function Game() {
     });
   }
 
-  return (<div>
+  return (<div className="container centre-text">
     <h1>
-    {roomId}
+    Room ID: {roomId}
     </h1>
     <Dice diceToBeKept={diceToBeKept} setDiceToBeKept={setDiceToBeKept} rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId && numOfRolls < 3} userId={userId}/>
     <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers} userId={userId} EndTurn={EndTurn} pickScore={turn === userId && numOfRolls >= 3} />
-    <StartGame users={users} setNextTurn={setNextTurn} setNumOfRolls={setNumOfRolls}/>
+    <StartGame users={users} setNextTurn={setNextTurn} setNumOfRolls={setNumOfRolls} turn={turn}/>
   </div>);
 }
 
@@ -344,15 +368,18 @@ function Dice(props){
   
   return (<div>
     <div>
+    <div className="row">
       {props.diceValues.map((value, index) => {
         return (
-          <div>
-        <Die key={"Dice" + index} value={value}/>
-        <CheckBox key={"Check" + index} index ={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept}/>
-        </div>);
+          <div className="col">
+        <Die key={"Dice" + index} value={value} index={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept}/>
+        {/* <CheckBox key={"Check" + index} index ={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept}/> */}
+        </div>
+        );
       })}
+      </div >
       </div>
-      <button onClick = {(event) => {props.rollDice(event,props.diceToBeKept)}} disabled={!props.myTurn}>Roll</button>
+      <button class="btn btn-primary mt-3 mb-3" onClick = {(event) => {props.rollDice(event,props.diceToBeKept)}} disabled={!props.myTurn}>Roll</button>
       </div>
   );
     
@@ -368,25 +395,26 @@ function Die(props){
              'https://upload.wikimedia.org/wikipedia/commons/0/08/Dice-5-b.svg',
              'https://upload.wikimedia.org/wikipedia/commons/2/26/Dice-6-b.svg'];
   return(
-    <div>
-      <img className = "dieImg" src={_dice[props.value]} alt = {props.value}/>
-    </div>
+    
+      <img className = {"dieImg " + ( props.diceToBeKept[props.index] ? "glow":"" )} src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
+        index === props.index 
+        ? !item
+        : item ))}}/>
+    
   );
 }
 
 function CheckBox(props) {
   return (
-    <input type="checkbox" checked={props.diceToBeKept[props.index]} onChange={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
-      index === props.index 
-      ? e.target.checked 
-      : item ))}}/>
+    <input type="checkbox" checked={props.diceToBeKept[props.index]} />
   )
 }
 
 function ScoreSheet(props) {
   return (
-    <table><thead>
+    <table className="table table-sm w-md-50 w-lg-50 w-xl-50 mx-auto">
     <tr>
+      
       <td>
         Name
       </td>
@@ -433,15 +461,15 @@ function ScoreSheet(props) {
         Bonus Yahtzee
       </td>
     </tr>
-    </thead>
-    <tbody>
+    
     {Object.entries(props.users).map((user) => {
       return (
     <ScoreColumn diceValues={props.diceValues} user={user} setUsers={props.setUsers} userId={props.userId} EndTurn={props.EndTurn} pickScore={props.pickScore} />
     );
   })}
-  </tbody>
+  
 </table>
+
   );
 }
 
@@ -601,15 +629,16 @@ function ScoreColumn(props) {
   return (
 <tr>
 <td>
-
+  <b>
 {props.user[1].name}
+</b>
 </td>
 { Object.entries(props.user[1].score).sort(function([a,c], [b,d]){  
   return setOrder.indexOf(a) - setOrder.indexOf(b);
 }).map(([key,value])=>{
   return value.map( (innerValue,index) => {
     return (
-      <td onClick = {(event)=>{
+      <td class={innerValue ==="-" && props.user[0]===props.userId && props.pickScore ? "clickable" : ""} onClick = {(event)=>{
       if(props.pickScore && props.user[0]===props.userId && innerValue ==="-"){
         addScore(key,index);
         props.EndTurn();
@@ -627,6 +656,13 @@ function ScoreColumn(props) {
 //Button which when clicked sets a random player to take the first turn
 function StartGame(props){
   const [disabled,setDisabled] = useState(false);
+  
+  useEffect(()=>{
+    if(props.turn !== ""){
+      setDisabled(true);
+    }
+  },[props.turn]);
+
   function handleClick(e) {
     props.setNextTurn(Object.keys(props.users)[Math.floor(Math.random() * Object.keys(props.users).length)]);
     setDisabled(true);
@@ -634,9 +670,9 @@ function StartGame(props){
     e.preventDefault(true);
   }
   return (
-    <button onClick={handleClick} disabled={disabled}>Start Game</button>
+    <button class="btn btn-primary mb-3"onClick={handleClick} disabled={disabled}>Start Game</button>
   )
 }
 
-//TODO: Bug where the numofRolls is carried across from a different game preventing it from starting
+//TODO Bug where the start game button doesn't remember to stay disabled if you reload the page
 export default App;

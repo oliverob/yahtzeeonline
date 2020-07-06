@@ -1,5 +1,25 @@
+html,body, #root{
+	height: 100%;
+}
+
+.centre-text {
+	text-align: center;
+}
+
 .dieImg {
-    height: 20px;
+    height: 30px;
+}
+.glow {
+	outline: none;
+    border-color: #9ecaed;
+    box-shadow: 0px 0px 20px 10px #9ecaed;
+}
+.clickable {
+	cursor: pointer;
+	background-color: #f1faee;
+}
+.clickable:hover {
+	background-color: #a8dadc;
 }
 table {
 	display: table;
