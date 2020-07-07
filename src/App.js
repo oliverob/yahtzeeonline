@@ -44,13 +44,18 @@ function EnterRoomIdPage() {
     <div className ="container h-100">
       <div className="row justify-content-center h-100 align-items-center">
         <div className="col-md-auto">
+        <div className="row mb-5 justify-content-center">
+            <div className="col-5">
+              <img className="w-100" src="yahtzee-logo.png" alt="logo"/>
+            </div>
+          </div>
           <div className="row mb-5 justify-content-center">
             <div className="col-auto">
               <CreateRoomButton />
             </div>
           </div>
-          <div className="row centre-text">
-            <div className="col">
+          <div className="row centre-text justify-content-center">
+            <div className="col-auto">
                 <JoinRoomIDForm />
             </div>
         </div>
@@ -103,7 +108,7 @@ function JoinRoomIDForm() {
         </label>
       <input type="text" id="enterRoomCode" class="form-control" value={roomId} onChange={handleChange} placeholder="Enter a room code" />
       </div>
-      <button type="submit" class="btn btn-primary">Submit</button>
+      <button type="submit" class="btn btn-primary">Join Room</button>
     </form>
   );
   
@@ -120,8 +125,7 @@ function addNewRoom() {
   const roomId = getRoomId();
   db.collection("rooms").doc(roomId).set({ 
     diceValues: ["","","","",""],
-    turn: "",
-    numOfRolls:0
+    turn: ""
   });
   return roomId;
 }
@@ -247,7 +251,7 @@ function EnterName(props) {
               </label>
               <input type="text" className="form-control"value={name} onChange={handleChange} />
               </div>
-            <button type="submit" className="btn btn-primary">Submit</button>
+            <button type="submit" disabled={!name} className="btn btn-primary">Submit</button>
           </form>
         </div>
       </div>
@@ -281,14 +285,20 @@ function addNewUser(roomId,name) {
 
 function Game() {
   var db = firebase.firestore();
+
+
+  //Could create a room state which is an object that has all the room states inside it - would make passing to other components neater
+  //Declare all the states used in the game
   const {roomId} = useParams();
   const [users,setUsers] = useState([]);
   const [turn, setTurn] = useState("");
-  const [diceValues, setDiceValues] = useState([0,0,0,0,0]);
+  const [diceValues, setDiceValues] = useState(["","","","",""]);
   const userId = sessionStorage.getItem("userId");
   const [numOfRolls, setNumOfRolls] = useState(sessionStorage.getItem("numOfRolls")||0);
   const [diceToBeKept, setDiceToBeKept] = useState([false,false,false,false,false]);
 
+
+  //Update the user state every time a new user is added, and update the dicevalues and turn state whenever another player rolls or ends their turn
   useEffect( () => {
     db.collection("users").where("roomId","==",roomId).onSnapshot( function(querySnapshot){
       setUsers(Object.fromEntries(querySnapshot.docs.map((user) => { 
@@ -300,10 +310,12 @@ function Game() {
     });
   },[roomId,db]);
 
+  //Update the locally stored number of rolls everytime the state is updated
   useEffect(() =>{
     sessionStorage.setItem("numOfRolls",numOfRolls);
   },[numOfRolls]);
   
+  //Update the database stored score everytime the local user score state is updated
   useEffect(()=>{
     const user = users[userId];
     if(users.length !== 0){
@@ -321,20 +333,26 @@ function Game() {
     })
   }
 
-  function rollDice(event,diceToBeKept) {
+  //Rolls only the dice not set to be kept
+  function rollDice(event) {
     const randomRoll = Array.from({length: 5}, () => Math.floor(Math.random() * 6));
-    //Update the dice
+    //Update the dice values stored in database - the dice values local state will be updated by the onsnapshot function once this update is finished
     db.collection("rooms").doc(roomId).update({
       diceValues: diceValues.map((item, index) => 
       diceToBeKept[index]
       ? item
       : randomRoll[index]  ),
     });
+
+    //Increment the number of rolls
     setNumOfRolls(n => parseFloat(n) + 1);
     event.preventDefault();
   }
   
+  //Sets up for next users turn
   function EndTurn() {
+
+    //Picks the next user whose turn it will be
     Object.entries(users).forEach( ([id,userData], index) =>{
       if(id === userId){
         if(index < Object.keys(users).length-1){
@@ -344,9 +362,12 @@ function Game() {
         }
       }
     });
+
+    //Resets the local states for when it comes back round to your turn
     setNumOfRolls(0);
     setDiceToBeKept([false,false,false,false,false]);
-    //Reset the dice
+
+    //Reset the dice so the next player doesn't start with the dice you finished with
     db.collection("rooms").doc(roomId).update({
       diceValues: diceValues.map((item, index) => 
       "" ),
@@ -354,16 +375,16 @@ function Game() {
   }
 
   return (<div className="container centre-text">
-    <h1>
+    <h1 className="roomIdTitle">
     Room ID: {roomId}
     </h1>
     <Dice diceToBeKept={diceToBeKept} setDiceToBeKept={setDiceToBeKept} rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId && numOfRolls < 3} userId={userId}/>
-    <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers} userId={userId} EndTurn={EndTurn} pickScore={turn === userId && numOfRolls >= 3} />
+    <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers} userId={userId} EndTurn={EndTurn} pickScore={turn === userId && numOfRolls >= 3} turn={turn} />
     <StartGame users={users} setNextTurn={setNextTurn} setNumOfRolls={setNumOfRolls} turn={turn}/>
   </div>);
 }
 
-
+//Component containing all the dice - main function is to iteratively create Die
 function Dice(props){
   
   return (<div>
@@ -386,6 +407,7 @@ function Dice(props){
     
 }
 
+//Displays Die and also manages calls to set which dice to be kept
 function Die(props){
   var _dice = ['https://upload.wikimedia.org/wikipedia/commons/1/1b/Dice-1-b.svg',
              'https://upload.wikimedia.org/wikipedia/commons/5/5f/Dice-2-b.svg',
@@ -403,12 +425,11 @@ function Die(props){
   );
 }
 
-
+//Component displaying scoresheet
 function ScoreSheet(props) {
   return (
     <table className="table table-sm w-md-50 w-lg-50 w-xl-50 mx-auto">
     <tr>
-      
       <td>
         Name
       </td>
@@ -463,7 +484,7 @@ function ScoreSheet(props) {
     
     {Object.entries(props.users).map((user) => {
       return (
-    <ScoreColumn diceValues={props.diceValues} user={user} setUsers={props.setUsers} userId={props.userId} EndTurn={props.EndTurn} pickScore={props.pickScore} />
+    <ScoreColumn diceValues={props.diceValues} user={user} setUsers={props.setUsers} userId={props.userId} EndTurn={props.EndTurn} pickScore={props.pickScore} turn={props.turn}/>
     );
   })}
   
@@ -473,12 +494,12 @@ function ScoreSheet(props) {
 }
 
 
-
+//Displays each users score in a column of the score sheet - also registers the changes in score at the end of each round
 function ScoreColumn(props) {
   const setOrder = ["addOnly","threeOfAKind","fourOfAKind","fullHouse","smallStraight","largeStraight","yahtzee","chance","bonusYahtzee"];
   let total=0;
 
-
+  //Edit the user local state to reflect the newly calculated score
   function addScore(key,index) {
    props.setUsers(users => Object.fromEntries(Object.entries(users).map(([id,user])=>{
     if(id === props.user[0]) {
@@ -501,6 +522,7 @@ function ScoreColumn(props) {
    );
   }
 
+  //Calculate the new score depending on which row of the table was clicked
   function calculateScore(currentScore,key,index) {
     switch(key) {
       case 'addOnly':
@@ -526,6 +548,7 @@ function ScoreColumn(props) {
         return 0;
     }
 
+    //Reduce function for the add only - sums the values that are equal to the passed index
     function sumAddOnly(total, currentValue,j,originalScores) {
       if(originalScores[j] === index) {
         return total + originalScores[j] + 1;
@@ -534,6 +557,7 @@ function ScoreColumn(props) {
       }
     }
     
+    //Evaluates whether or not a three of a kind is present
     function threeOfAKind() {
       return props.diceValues.some((dieValue)=>{
         if(props.diceValues.reduce((total,cur,index,src)=>(
@@ -545,6 +569,8 @@ function ScoreColumn(props) {
         }
       });
     }
+
+    //Evaluates whether or not a four of a kind is present
     function fourOfAKind() {
       return props.diceValues.some((dieValue)=>{
         if(props.diceValues.reduce((total,cur,index,src)=>(
@@ -556,6 +582,8 @@ function ScoreColumn(props) {
         }
       });
     }
+
+    //Evaluates whether or not a full house is present
     function fullHouse() {
       return props.diceValues.some((dieValue)=>{
         if(props.diceValues.reduce((total,cur,index,src)=>(
@@ -574,10 +602,9 @@ function ScoreColumn(props) {
         }
       });
     }
-  
-    function smallStraight() {
-      
 
+    //Evaluates whether or not a small straight is present
+    function smallStraight() {
       if([0,1,2,3].every(element => props.diceValues.includes(element))){
         return true;
       }
@@ -591,6 +618,7 @@ function ScoreColumn(props) {
       }
     }
 
+    //Evaluates whether or not a large straight is present
     function largeStraight() {
       const sorted = props.diceValues.sort();
       if(JSON.stringify(sorted) ===JSON.stringify([0,1,2,3,4])){
@@ -601,6 +629,8 @@ function ScoreColumn(props) {
       }
       return false;
     }
+
+    //Evaluates whether or not a yahtzee is present
     function yahtzee() {
       return props.diceValues.some((dieValue)=>{
         if(props.diceValues.reduce((total,cur,index,src)=>(
@@ -611,18 +641,23 @@ function ScoreColumn(props) {
         }
       });
     }
+    
+    //TODO: Could make bonus yahtzee only be clickable if yahtzee has already been rolled
+    //Checks that yahtzee has already been rolled and if so check if it has been rolled again
     function bonusYahtzee() {
-      if(props.user[1].score.yahtzee === ["-"]){
-        return false;
-      } else {
+      if(props.user[1].score.yahtzee === [50]){
         return yahtzee();
+      } else {
+        return false;
       }
     }
   }
   
+
+  //Does all the complicated business of making sure the correct score is displayed for each column, making them clickable etc.
   return (
 <tr>
-<td>
+<td className = {props.user[0]===props.turn ? "yourTurn" : ""}>
   <b>
 {props.user[1].name}
 </b>
@@ -635,12 +670,13 @@ function ScoreColumn(props) {
       total = total + innerValue;
     }
     return (
-      <td class={innerValue ==="-" && props.user[0]===props.userId && props.pickScore ? "clickable" : ""} onClick = {(event)=>{
-      if(props.pickScore && props.user[0]===props.userId && innerValue ==="-"){
+      <td class={(innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50)? "clickable" : ""} onClick = {(event)=>{
+      if((innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50)){
         addScore(key,index);
         props.EndTurn();
+        
       }}}>
-          {innerValue}
+          {(innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50) ? calculateScore(value,key,index)[index] :innerValue}
       </td>
     );
 })
@@ -654,6 +690,7 @@ function ScoreColumn(props) {
 }
 
 //Button which when clicked sets a random player to take the first turn
+//TODO: Make this more obvious that is the first thing you have to do, maybe make it impossible to join game after it is clicked
 function StartGame(props){
   const [disabled,setDisabled] = useState(false);
   
@@ -674,5 +711,4 @@ function StartGame(props){
   )
 }
 
-//TODO Bug where the start game button doesn't remember to stay disabled if you reload the page
 export default App;

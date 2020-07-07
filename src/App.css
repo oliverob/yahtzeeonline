@@ -1,6 +1,9 @@
 html,body, #root{
 	height: 100%;
 }
+.roomIdTitle {
+	
+}
 
 .centre-text {
 	text-align: center;
@@ -16,11 +19,16 @@ html,body, #root{
 }
 .clickable {
 	cursor: pointer;
-	background-color: #f1faee;
+	background-color: #f2ecf2;
 }
 .clickable:hover {
-	background-color: #a8dadc;
+	background-color: white;
 }
+
+.yourTurn {
+	background-color: #f2ecf2;
+}
+
 table {
 	display: table;
 }
