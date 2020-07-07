@@ -54,6 +54,11 @@ function EnterRoomIdPage() {
               <CreateRoomButton />
             </div>
           </div>
+          <div class="group mb-4">
+                <div class="item line"></div>
+                <div class="item text">OR</div>
+                <div class="item line"></div>
+              </div>
           <div className="row centre-text justify-content-center">
             <div className="col-auto">
                 <JoinRoomIDForm />
@@ -85,6 +90,7 @@ function CreateRoomButton()  {
 
 function JoinRoomIDForm() {
   const [roomId, setRoomid] = useState('');
+  const [alert,setAlert] = useState(false);
   let history = useHistory();
 
   function handleChange(event) {
@@ -95,7 +101,7 @@ function JoinRoomIDForm() {
     roomExists(roomId).then(exists => {if (exists) {
       moveToRoom(roomId,history);
     } else {
-      alert('Room does not exist')
+      setAlert(true);
     }});
     event.preventDefault();
   }
@@ -108,10 +114,21 @@ function JoinRoomIDForm() {
         </label>
       <input type="text" id="enterRoomCode" class="form-control" value={roomId} onChange={handleChange} placeholder="Enter a room code" />
       </div>
-      <button type="submit" class="btn btn-primary">Join Room</button>
+      <button type="submit" class="btn btn-primary mb-3" disabled={!roomId}>Join Room</button>
+      {alert ? <Alert setAlert={setAlert}/>:null}
     </form>
   );
   
+}
+function Alert(props){
+  return (
+  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>Invalid Room ID</strong> 
+    <button type="button" class="close"  aria-label="Close" onClick={(event)=>{props.setAlert(false); event.preventDefault();}}>
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </div>
+  );
 }
 
 function moveToRoom(roomId, history) {
@@ -425,6 +442,8 @@ function Die(props){
   );
 }
 
+
+//TODO: Add the scores next to the lower section
 //Component displaying scoresheet
 function ScoreSheet(props) {
   return (
@@ -452,28 +471,28 @@ function ScoreSheet(props) {
         Add only Sixes
       </td>
       <td>
-        Three Of A Kind
+        Three Of A Kind <i>= TOTAL</i>
       </td>
       <td>
-        Four Of A Kind
+        Four Of A Kind <i>= TOTAL</i>
       </td>
       <td>
-        Full House
+        Full House <b>= 25</b>
       </td>
       <td>
-        Small Straight
+        Small Straight <i>= 30</i>
       </td>
       <td>
-        Large Straight
+        Large Straight <i>= 40</i>
       </td>
       <td>
-        Yahtzee
+        Yahtzee <i>= 50</i>
       </td>
       <td>
-        Chance
+        Chance <i>= TOTAL</i>
       </td>
       <td>
-        Bonus Yahtzee
+        Bonus Yahtzee <i>= 100</i>
       </td>
       <td>
         <b>
