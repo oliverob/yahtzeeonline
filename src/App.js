@@ -642,14 +642,11 @@ function ScoreColumn(props) {
       });
     }
     
-    //TODO: Could make bonus yahtzee only be clickable if yahtzee has already been rolled
     //Checks that yahtzee has already been rolled and if so check if it has been rolled again
     function bonusYahtzee() {
-      if(props.user[1].score.yahtzee === [50]){
+      
         return yahtzee();
-      } else {
-        return false;
-      }
+      
     }
   }
   
