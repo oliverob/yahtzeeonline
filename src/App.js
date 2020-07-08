@@ -4,10 +4,12 @@ import './widthme.css';
 import { Route, useParams } from 'react-router-dom';
 import { Switch} from 'react-router-dom';
 import { useHistory } from "react-router-dom";
-import { useState , useEffect} from 'react';
+import { useState , useEffect, useRef} from 'react';
 import * as firebase from 'firebase/app';
 import "firebase/analytics";
 import "firebase/firestore";
+import ReactTooltip from "react-tooltip";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from 'reactstrap';
 
 
 
@@ -54,10 +56,10 @@ function EnterRoomIdPage() {
               <CreateRoomButton />
             </div>
           </div>
-          <div class="group mb-4">
-                <div class="item line"></div>
-                <div class="item text">OR</div>
-                <div class="item line"></div>
+          <div className="group mb-4">
+                <div className="item line"></div>
+                <div className="item text">OR</div>
+                <div className="item line"></div>
               </div>
           <div className="row centre-text justify-content-center">
             <div className="col-auto">
@@ -82,8 +84,8 @@ function CreateRoomButton()  {
   }
 
   return (
-    <button class="btn btn-primary"onClick={handleClick}>
-        Create Room
+    <button className="btn btn-primary"onClick={handleClick}>
+        Create Game
     </button>
   );
 }
@@ -110,11 +112,11 @@ function JoinRoomIDForm() {
     <form onSubmit={handleSubmit}>
       <div className="form-group">
       <label for="enterRoomCode">
-        Room ID:
+        Game ID:
         </label>
-      <input type="text" id="enterRoomCode" class="form-control" value={roomId} onChange={handleChange} placeholder="Enter a room code" />
+      <input type="text" id="enterRoomCode" className="form-control" value={roomId} onChange={handleChange} placeholder="Enter a game ID" />
       </div>
-      <button type="submit" class="btn btn-primary mb-3" disabled={!roomId}>Join Room</button>
+      <button type="submit" className="btn btn-primary mb-3" disabled={!roomId}>Join Game</button>
       {alert ? <Alert setAlert={setAlert}/>:null}
     </form>
   );
@@ -122,9 +124,9 @@ function JoinRoomIDForm() {
 }
 function Alert(props){
   return (
-  <div class="alert alert-warning alert-dismissible fade show" role="alert">
+  <div className="alert alert-warning alert-dismissible fade show" role="alert">
     <strong>Invalid Room ID</strong> 
-    <button type="button" class="close"  aria-label="Close" onClick={(event)=>{props.setAlert(false); event.preventDefault();}}>
+    <button type="button" className="close"  aria-label="Close" onClick={(event)=>{props.setAlert(false); event.preventDefault();}}>
       <span aria-hidden="true">&times;</span>
     </button>
   </div>
@@ -391,33 +393,88 @@ function Game() {
     });
   }
 
-  return (<div className="container centre-text">
+  return (<div className="container centre-text h-100">
     <h1 className="roomIdTitle">
-    Room ID: {roomId}
+    Game ID: {roomId}
     </h1>
-    <Dice diceToBeKept={diceToBeKept} setDiceToBeKept={setDiceToBeKept} rollDice={rollDice} diceValues={diceValues}  myTurn={turn === userId && numOfRolls < 3} userId={userId}/>
+    <Dice users={users} setNextTurn={setNextTurn} setNumOfRolls={setNumOfRolls} turn={turn} diceToBeKept={diceToBeKept} setDiceToBeKept={setDiceToBeKept} rollDice={rollDice} diceValues={diceValues}  numOfRolls={numOfRolls} userId={userId}/>
     <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers} userId={userId} EndTurn={EndTurn} pickScore={turn === userId && numOfRolls >= 3} turn={turn} />
-    <StartGame users={users} setNextTurn={setNextTurn} setNumOfRolls={setNumOfRolls} turn={turn}/>
   </div>);
 }
 
 //Component containing all the dice - main function is to iteratively create Die
 function Dice(props){
+  const [gameStarted,setGameStarted] = useState(false);
+  const diceContainer = useRef(null);
+  const myTurn = props.turn === props.userId && props.numOfRolls < 3;
+  const [styles,setStyles] = useState([{
+    position: 'relative',
+    top: 0,
+    left:0
   
-  return (<div>
-    <div>
-    <div className="row">
+  },{
+    position: 'relative',
+    top: 0,
+    left:0
+  },{
+    position: 'relative',
+    top: 0,
+    left:0
+  },{
+    position: 'relative',
+    top: 0,
+    left:0
+  },{
+    position: 'relative',
+    top: 0,
+    left:0
+  }]);
+  useEffect(() =>{
+    const topOfContainer = diceContainer.current.getBoundingClientRect().top;
+    const leftOfContainer = diceContainer.current.getBoundingClientRect().left;
+    const widthOfContainer = diceContainer.current.getBoundingClientRect().width;
+    const heightOfContainer = diceContainer.current.getBoundingClientRect().height;
+
+    const yCoordinates = Array.from({length: 5}, () => Math.floor(Math.random() * (heightOfContainer/60-1)));
+    let xCoordinates =[];
+    for( let outerIndex = 0; outerIndex < yCoordinates.length; outerIndex++ ){
+      let notUnique = true;
+      while(notUnique){
+        const newX = Math.floor(Math.random() * (widthOfContainer/60-1));
+        if(xCoordinates.every((x,innerIndex)=>{
+          return !((newX === x) && (yCoordinates[outerIndex] === yCoordinates[innerIndex]))
+        })){
+          notUnique = false;
+          xCoordinates.push(newX);
+        }
+      }
+    }
+
+
+    setStyles(styles => styles.map((style,index)=> {return {
+      position: 'absolute',
+      top: topOfContainer + yCoordinates[index]*60 + Math.random()*30,
+      left: leftOfContainer + xCoordinates[index]*60 + Math.random()*30,
+      transform: 'rotate(' + Math.random()*360 + 'deg)'
+    }
+  }));
+  },[props.diceValues]); 
+  return (
+    <div className="container h-25 mb-4">
+    <div ref={diceContainer} className="row h-75 align-items-end justify-content-center">
       {props.diceValues.map((value, index) => {
         return (
-          <div className="col">
-        <Die key={"Dice" + index} value={value} index={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept} myTurn={props.myTurn}/>
-        </div>
+        <Die style={styles[index]} key={"Dice" + index} value={value} index={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept} myTurn={myTurn} numOfRolls={props.numOfRolls}/>
         );
       })}
-      </div >
+    </div>
+    <div className="row h-25">
+        <div className="col">
+      <StartGame disabled={gameStarted} setDisabled={setGameStarted} users={props.users} setNextTurn={props.setNextTurn} setNumOfRolls={props.setNumOfRolls} turn={props.turn}/>
+      <button className={"btn btn-primary mt-3 " + (gameStarted ? "" : "hidden")} onClick = {(event) => {props.rollDice(event,props.diceToBeKept)}} disabled={!myTurn}>Roll</button>
       </div>
-      <button class="btn btn-primary mt-3 mb-3" onClick = {(event) => {props.rollDice(event,props.diceToBeKept)}} disabled={!props.myTurn}>Roll</button>
-      </div>
+    </div>
+    </div>
   );
     
 
@@ -432,67 +489,81 @@ function Die(props){
              'https://upload.wikimedia.org/wikipedia/commons/f/fd/Dice-4-b.svg',
              'https://upload.wikimedia.org/wikipedia/commons/0/08/Dice-5-b.svg',
              'https://upload.wikimedia.org/wikipedia/commons/2/26/Dice-6-b.svg'];
+  const keep = {
+    position: 'relative',
+    top: 0,
+    left:0,
+    transform: 'rotate(0deg)'
+  };
   return(
-    
-      <img className = {"dieImg " + ( props.diceToBeKept[props.index] && props.myTurn ? "glow":"" )} src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
+    <div className="col-auto dieContainer" style={(props.diceToBeKept[props.index] && props.myTurn) || (props.numOfRolls === 3) || (props.numOfRolls === 0)? keep: props.style }>
+      <img  className = {"dieImg " } src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
         index === props.index 
         ? !item
         : item ))}}/>
+        </div>
     
   );
 }
 
-
-//TODO: Add the scores next to the lower section
 //Component displaying scoresheet
 function ScoreSheet(props) {
+  const [gameOver, setGameOver] = useState(Boolean(Object.keys(props.users).length));
+  let totals =[];
+  function pushTotal([name,total]){
+    totals.push([name,total]);
+  }
+  useEffect(()=>{
+    setGameOver(Boolean(Object.keys(props.users).length));
+  },[props.users]);
   return (
     <table className="table table-sm w-md-50 w-lg-50 w-xl-50 mx-auto">
+    <ReactTooltip place="top" />
     <tr>
       <td>
         Name
       </td>
-      <td>
+      <td data-tip="Add all the ones">
         Add only Aces
       </td>
-      <td>
+      <td data-tip="Add all the twos">
         Add only Twos
       </td>
-      <td>
+      <td data-tip="Add all the threes">
         Add only Threes
       </td>
-      <td>
+      <td data-tip="Add all the fours">
         Add only Fours
       </td>
-      <td>
+      <td data-tip="Add all the fives">
         Add only Fives
       </td>
-      <td>
+      <td data-tip="Add all the sixes">
         Add only Sixes
       </td>
-      <td>
-        Three Of A Kind <i>= TOTAL</i>
+      <td  data-tip="Add all 5 dice">
+        Three Of A Kind
       </td>
-      <td>
-        Four Of A Kind <i>= TOTAL</i>
+      <td data-tip="Add all 5 dice">
+        Four Of A Kind
       </td>
-      <td>
-        Full House <b>= 25</b>
+      <td data-tip="Three of a kind + a pair: 25 points">
+        Full House
       </td>
-      <td>
-        Small Straight <i>= 30</i>
+      <td data-tip="4 dice long straight: 30 points">
+        Small Straight
       </td>
-      <td>
-        Large Straight <i>= 40</i>
+      <td data-tip="5 dice long straight: 40 points">
+        Large Straight
       </td>
-      <td>
-        Yahtzee <i>= 50</i>
+      <td data-tip="Five of a kind: 50 points">
+        Yahtzee
       </td>
-      <td>
-        Chance <i>= TOTAL</i>
+      <td data-tip="Add all 5 dice on any roll">
+        Chance
       </td>
-      <td>
-        Bonus Yahtzee <i>= 100</i>
+      <td data-tip="Five of a kind for the second time: 100 points">
+        Bonus Yahtzee
       </td>
       <td>
         <b>
@@ -503,10 +574,11 @@ function ScoreSheet(props) {
     
     {Object.entries(props.users).map((user) => {
       return (
-    <ScoreColumn diceValues={props.diceValues} user={user} setUsers={props.setUsers} userId={props.userId} EndTurn={props.EndTurn} pickScore={props.pickScore} turn={props.turn}/>
+    <ScoreColumn pushTotal={pushTotal} setGameOver={setGameOver} diceValues={props.diceValues} user={user} setUsers={props.setUsers} userId={props.userId} EndTurn={props.EndTurn} pickScore={props.pickScore} turn={props.turn}/>
+   
     );
   })}
-  
+  {gameOver ? (<Winners users={props.users} totals={totals}/>):null}
 </table>
 
   );
@@ -517,7 +589,7 @@ function ScoreSheet(props) {
 function ScoreColumn(props) {
   const setOrder = ["addOnly","threeOfAKind","fourOfAKind","fullHouse","smallStraight","largeStraight","yahtzee","chance","bonusYahtzee"];
   let total=0;
-
+  
   //Edit the user local state to reflect the newly calculated score
   function addScore(key,index) {
    props.setUsers(users => Object.fromEntries(Object.entries(users).map(([id,user])=>{
@@ -661,7 +733,7 @@ function ScoreColumn(props) {
       });
     }
     
-    //Checks that yahtzee has already been rolled and if so check if it has been rolled again
+    //Can only be called if yahtzee has already been rolled
     function bonusYahtzee() {
       
         return yahtzee();
@@ -684,9 +756,17 @@ function ScoreColumn(props) {
   return value.map( (innerValue,index) => {
     if(innerValue !== "-"){
       total = total + innerValue;
+    } else {
+      if(key !== "bonusYahtzee"){
+        props.setGameOver(false);
+      }
     }
+    if(key ==="bonusYahtzee"){
+      props.pushTotal([props.user[1].name, total])
+    }
+    
     return (
-      <td class={(innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50)? "clickable" : ""} onClick = {(event)=>{
+      <td className={(innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50)? "clickable" : ""} onClick = {(event)=>{
       if((innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50)){
         addScore(key,index);
         props.EndTurn();
@@ -694,6 +774,7 @@ function ScoreColumn(props) {
       }}}>
           {(innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50) ? calculateScore(value,key,index)[index] :innerValue}
       </td>
+      
     );
 })
 })
@@ -706,25 +787,43 @@ function ScoreColumn(props) {
 }
 
 //Button which when clicked sets a random player to take the first turn
-//TODO: Make this more obvious that is the first thing you have to do, maybe make it impossible to join game after it is clicked
+//TODO: Maybe make it impossible to join game after it is clicked
 function StartGame(props){
-  const [disabled,setDisabled] = useState(false);
   
   useEffect(()=>{
     if(props.turn !== ""){
-      setDisabled(true);
+      props.setDisabled(true);
     }
-  },[props.turn]);
+  },[props,props.turn]);
 
   function handleClick(e) {
     props.setNextTurn(Object.keys(props.users)[Math.floor(Math.random() * Object.keys(props.users).length)]);
-    setDisabled(true);
+    props.setDisabled(true);
     props.setNumOfRolls(0);
     e.preventDefault(true);
   }
   return (
-    <button class="btn btn-primary mb-3"onClick={handleClick} disabled={disabled}>Start Game</button>
+    <button className={"btn btn-primary mt-3 " + (props.disabled ? "hidden" : "")}onClick={handleClick} disabled={props.disabled}>Start Game</button>
   )
+}
+
+function Winners(props) {
+  const [modal, setModal] = useState(true);
+
+  const toggle = () => setModal(!modal);
+
+
+   return(
+    <Modal isOpen={modal} toggle={toggle} backdrop="static" >
+        <ModalHeader toggle={toggle}>Game Over</ModalHeader>
+        <ModalBody>
+
+         And the winner is .... {props.totals.reduce((a, b) => Object.fromEntries(props.totals)[a[0]] > Object.fromEntries(props.totals)[b[0]] ? a : b)[0]}     </ModalBody>
+        <ModalFooter>
+          
+        </ModalFooter>
+      </Modal>
+  );
 }
 
 export default App;
