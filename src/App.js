@@ -12,7 +12,6 @@ import ReactTooltip from "react-tooltip";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from 'reactstrap';
 
 
-
 function App() {
   const firebaseConfig = {
     apiKey: "AIzaSyA18j7NY0km_kcU5CSQd53ZvfDdf5LMju8",
