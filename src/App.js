@@ -69,7 +69,6 @@ function EnterRoomIdPage() {
       </div>
     </div>
   </div>
-    
   );
 }
 
@@ -122,6 +121,8 @@ function JoinRoomIDForm() {
   );
   
 }
+
+//Alert displayed if an incorrect room ID is displayed
 function Alert(props){
   return (
   <div className="alert alert-warning alert-dismissible fade show" role="alert">
@@ -133,6 +134,7 @@ function Alert(props){
   );
 }
 
+//Navigate to new room
 function moveToRoom(roomId, history) {
   sessionStorage.setItem('roomId',roomId);
   history.push("/"+ roomId);
@@ -140,6 +142,7 @@ function moveToRoom(roomId, history) {
 
 //Generate a random ID, check there isn't already an instance of it and if not create a new room with that ID
 function addNewRoom() {
+  //Can just create a new db everytime I need one as it just returns a singleton object, the same one every time
   const db = firebase.firestore();
   const roomId = getRoomId();
   db.collection("rooms").doc(roomId).set({ 
@@ -153,15 +156,13 @@ function addNewRoom() {
 function getRoomId() {
   const roomId = makeId();
   roomExists(roomId).then(exists => {if(exists) {
-    
-    getRoomId();
-  } else {
-    return roomId;
-  }
+      getRoomId();
+    } else {
+      return roomId;
+    }
   });
   return roomId;
 }
-
 
 //Generate a new random ID of 6 letters long
 function makeId() {
@@ -216,7 +217,7 @@ function GamePage() {
     if(userId===null){
       return (
        
-        <EnterName userExists = {setUserIdExistsButWrongRoom}/>
+        <EnterName setUserIdExistsButWrongRoom = {setUserIdExistsButWrongRoom}/>
       
       );
     } else {
@@ -224,7 +225,7 @@ function GamePage() {
         if(userIdExistsButWrongRoom){
           return (
             
-            <EnterName userExists = {setUserIdExistsButWrongRoom}/>
+            <EnterName setUserIdExistsButWrongRoom = {setUserIdExistsButWrongRoom}/>
           
           );
         } else {
@@ -240,6 +241,7 @@ function GamePage() {
     return (<div />);
   }
 }
+
 //==============================Enter Name=============================================
 
 function EnterName(props) {
@@ -253,7 +255,9 @@ function EnterName(props) {
   function handleSubmit(event) {
     addNewUser(roomId,name).then(function(user) {
       sessionStorage.setItem('userId',user.id);
-      props.userExists(false);
+
+      //Updates the state to reflect the new user ID belonging to the correct room
+      props.setUserIdExistsButWrongRoom(false);
     });
     //IMPORTANT without preventing the default setting a confusing bug occurs where the page reloads before the promise resolves
     event.preventDefault();
@@ -309,10 +313,10 @@ function Game() {
   //Could create a room state which is an object that has all the room states inside it - would make passing to other components neater
   //Declare all the states used in the game
   const {roomId} = useParams();
+  const userId = sessionStorage.getItem("userId");
   const [users,setUsers] = useState([]);
   const [turn, setTurn] = useState("");
   const [diceValues, setDiceValues] = useState(["","","","",""]);
-  const userId = sessionStorage.getItem("userId");
   const [numOfRolls, setNumOfRolls] = useState(sessionStorage.getItem("numOfRolls")||0);
   const [diceToBeKept, setDiceToBeKept] = useState([false,false,false,false,false]);
 
@@ -337,16 +341,18 @@ function Game() {
   //Update the database stored score everytime the local user score state is updated
   useEffect(()=>{
     const user = users[userId];
+    //This condition is necessary to prevent it updating the database on initlisation
+    // before the local state has been loaded from the database
     if(users.length !== 0){
-    db.collection("users").doc(userId).update({ 
-      score: user.score
-     });
+      db.collection("users").doc(userId).update({ 
+        score: user.score
+    });
     }
   },[db,users,userId]);
 
-  //Updates the local turn state and the database turn state
+  //Updates the database turn state, doesn't need to update the local 
+  //turn state as that is updated by the onSnapshot function once the database has been updated
   function setNextTurn(nextUser) {
-    setTurn(nextUser);
     db.collection("rooms").doc(roomId).update({
       turn: nextUser
     })
@@ -393,6 +399,7 @@ function Game() {
     });
   }
 
+  //TODO: This passes a ridiculous number of props
   return (<div className="container centre-text h-100">
     <h1 className="roomIdTitle">
     Game ID: {roomId}
@@ -404,14 +411,15 @@ function Game() {
 
 //Component containing all the dice - main function is to iteratively create Die
 function Dice(props){
-  const [gameStarted,setGameStarted] = useState(false);
+  //diceContainer is used to get the dimensions of the area the dice can roll in
   const diceContainer = useRef(null);
-  const myTurn = props.turn === props.userId && props.numOfRolls < 3;
+  //This essentially describes whether the user should be able to click roll
+  const canRoll = props.turn === props.userId && props.numOfRolls < 3;
+  //These are the initalised states of the Die where they are resting at the positiions given by bootstrap
   const [styles,setStyles] = useState([{
     position: 'relative',
     top: 0,
     left:0
-  
   },{
     position: 'relative',
     top: 0,
@@ -429,7 +437,47 @@ function Dice(props){
     top: 0,
     left:0
   }]);
+
+  //This is called everytime the local dicevalues are updated, 
+  //and it sets the css positions of the dice to look like they where thrown
   useEffect(() =>{
+    const [top,left] = randomCoordinates(diceContainer);
+
+    //This takes the random coordinates, adds a random giggle and rotations
+    //This means that the dice will never touch each other as they are all at least 60px apart
+    //and we are only giving a 15px jiggle
+    setStyles(styles => styles.map((style,index)=> {return {
+      position: 'absolute',
+      top: top[index] + Math.random()*15,
+      left: left[index] + Math.random()*15,
+      transform: 'rotate(' + Math.random()*360 + 'deg)'
+    }
+  }));
+  },[props.diceValues]);
+
+  //TODO: Passing a hideous number of props here too - maybe investigate redux to manage my states
+  return (
+    <div className="container h-25 mb-4">
+    <div ref={diceContainer} className="row h-75 align-items-end justify-content-center">
+      {props.diceValues.map((value, index) => {
+        return (
+        <Die style={styles[index]} key={"Dice" + index} value={value} index={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept} canRoll={canRoll} numOfRolls={props.numOfRolls}/>
+        );
+      })}
+    </div>
+    <div className="row h-25">
+        <div className="col">
+      <StartGame disabled={props.turn !== ""} users={props.users} setNextTurn={props.setNextTurn} setNumOfRolls={props.setNumOfRolls} turn={props.turn}/>
+      <button className={"btn btn-primary mt-3 " + (props.turn !== "" ? "" : "hidden")} onClick = {(event) => {props.rollDice(event,props.diceToBeKept)}} disabled={!canRoll}>Roll</button>
+      </div>
+    </div>
+    </div>
+  );
+}
+
+//This generates a random set of coordinates with every 
+//coordianate at least 60px apart from the others
+function randomCoordinates(diceContainer) {
     const topOfContainer = diceContainer.current.getBoundingClientRect().top;
     const leftOfContainer = diceContainer.current.getBoundingClientRect().left;
     const widthOfContainer = diceContainer.current.getBoundingClientRect().width;
@@ -450,35 +498,7 @@ function Dice(props){
       }
     }
 
-
-    setStyles(styles => styles.map((style,index)=> {return {
-      position: 'absolute',
-      top: topOfContainer + yCoordinates[index]*60 + Math.random()*30,
-      left: leftOfContainer + xCoordinates[index]*60 + Math.random()*30,
-      transform: 'rotate(' + Math.random()*360 + 'deg)'
-    }
-  }));
-  },[props.diceValues]); 
-  return (
-    <div className="container h-25 mb-4">
-    <div ref={diceContainer} className="row h-75 align-items-end justify-content-center">
-      {props.diceValues.map((value, index) => {
-        return (
-        <Die style={styles[index]} key={"Dice" + index} value={value} index={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept} myTurn={myTurn} numOfRolls={props.numOfRolls}/>
-        );
-      })}
-    </div>
-    <div className="row h-25">
-        <div className="col">
-      <StartGame disabled={gameStarted} setDisabled={setGameStarted} users={props.users} setNextTurn={props.setNextTurn} setNumOfRolls={props.setNumOfRolls} turn={props.turn}/>
-      <button className={"btn btn-primary mt-3 " + (gameStarted ? "" : "hidden")} onClick = {(event) => {props.rollDice(event,props.diceToBeKept)}} disabled={!myTurn}>Roll</button>
-      </div>
-    </div>
-    </div>
-  );
-    
-
-    
+    return [yCoordinates.map(y=>y*60+topOfContainer),xCoordinates.map(y=>y*60+leftOfContainer)]
 }
 
 //Displays Die and also manages calls to set which dice to be kept
@@ -489,14 +509,18 @@ function Die(props){
              'https://upload.wikimedia.org/wikipedia/commons/f/fd/Dice-4-b.svg',
              'https://upload.wikimedia.org/wikipedia/commons/0/08/Dice-5-b.svg',
              'https://upload.wikimedia.org/wikipedia/commons/2/26/Dice-6-b.svg'];
+  //Position of dice when they are being kept
   const keep = {
     position: 'relative',
     top: 0,
     left:0,
     transform: 'rotate(0deg)'
   };
+
+  //Code here sets the die position either to "keep" or the thrown state, it also changes the state on click which 
+  //when rerendered changes the position
   return(
-    <div className="col-auto dieContainer" style={(props.diceToBeKept[props.index] && props.myTurn) || (props.numOfRolls === 3) || (props.numOfRolls === 0)? keep: props.style }>
+    <div className="col-auto dieContainer" style={(props.diceToBeKept[props.index] && props.canRoll) || (props.numOfRolls === 3) || (props.numOfRolls === 0)? keep: props.style }>
       <img  className = {"dieImg " } src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
         index === props.index 
         ? !item
@@ -508,7 +532,10 @@ function Die(props){
 
 //Component displaying scoresheet
 function ScoreSheet(props) {
+  //TODO: possibly figure out if game is over by querying database for "-" instead of doing it in child component
   const [gameOver, setGameOver] = useState(Boolean(Object.keys(props.users).length));
+  //TODO: could also calculate final totals by using database queries in the Winners component
+  //Proabably neater though also slower
   let totals =[];
   function pushTotal([name,total]){
     totals.push([name,total]);
@@ -516,6 +543,8 @@ function ScoreSheet(props) {
   useEffect(()=>{
     setGameOver(Boolean(Object.keys(props.users).length));
   },[props.users]);
+
+  //TODO: ARRRGGHHH too many props
   return (
     <table className="table table-sm w-md-50 w-lg-50 w-xl-50 mx-auto">
     <ReactTooltip place="top" />
@@ -571,7 +600,6 @@ function ScoreSheet(props) {
         </b>
       </td>
     </tr>
-    
     {Object.entries(props.users).map((user) => {
       return (
     <ScoreColumn pushTotal={pushTotal} setGameOver={setGameOver} diceValues={props.diceValues} user={user} setUsers={props.setUsers} userId={props.userId} EndTurn={props.EndTurn} pickScore={props.pickScore} turn={props.turn}/>
@@ -787,18 +815,11 @@ function ScoreColumn(props) {
 }
 
 //Button which when clicked sets a random player to take the first turn
-//TODO: Maybe make it impossible to join game after it is clicked
+//TODO: Maybe make it impossible to join game after this is clicked
 function StartGame(props){
-  
-  useEffect(()=>{
-    if(props.turn !== ""){
-      props.setDisabled(true);
-    }
-  },[props,props.turn]);
 
   function handleClick(e) {
     props.setNextTurn(Object.keys(props.users)[Math.floor(Math.random() * Object.keys(props.users).length)]);
-    props.setDisabled(true);
     props.setNumOfRolls(0);
     e.preventDefault(true);
   }
@@ -811,7 +832,6 @@ function Winners(props) {
   const [modal, setModal] = useState(true);
 
   const toggle = () => setModal(!modal);
-
 
    return(
     <Modal isOpen={modal} toggle={toggle} backdrop="static" >
