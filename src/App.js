@@ -573,7 +573,7 @@ function Die(props){
   //Code here sets the die position either to "keep" or the thrown state, it also changes the state on click which 
   //when rerendered changes the position
   return(
-       <img  className = {"dieImg " } src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(diceToBeKept => diceToBeKept.map((item, index) => 
+       <img  className = {"dieImg " + props.value === "" ? "hidden" : ""} src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(diceToBeKept => diceToBeKept.map((item, index) => 
         index === props.index
         ? !item
         : item ))}}/>
