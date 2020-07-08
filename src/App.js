@@ -116,14 +116,14 @@ function JoinRoomIDForm() {
       <input type="text" id="enterRoomCode" className="form-control" value={roomId} onChange={handleChange} placeholder="Enter a game ID" />
       </div>
       <button type="submit" className="btn btn-primary mb-3" disabled={!roomId}>Join Game</button>
-      {alert ? <Alert setAlert={setAlert}/>:null}
+      {alert ? <WrongCodeAlert setAlert={setAlert}/>:null}
     </form>
   );
   
 }
 
 //Alert displayed if an incorrect room ID is displayed
-function Alert(props){
+function WrongCodeAlert(props){
   return (
   <div className="alert alert-warning alert-dismissible fade show" role="alert">
     <strong>Invalid Room ID</strong> 
@@ -187,7 +187,10 @@ function roomExists(roomId){
 //==============================================================================
 //                              Game Page
 //==============================================================================
-
+//This section is everything that happens at the /{roomID} URL
+//THere are two main sections though the first one is much smaller than the second
+//Enter Name sub page: which either allows a user to enter their name, redirects them to the / URL or loads the game
+//Game sub page: which actually has the game on it
 
 function GamePage() {
   const {roomId} = useParams();
@@ -243,22 +246,33 @@ function GamePage() {
 }
 
 //==============================Enter Name=============================================
+//This is just the code for entering the name and redirecting users that shouldn't be here
 
 function EnterName(props) {
   const {roomId} = useParams();
   const [name, setName] = useState("");
-  
+  const db = firebase.firestore();
+  const [alert,setAlert] = useState(false);
+
   function handleChange(event) {
     setName(event.target.value);
   }
   //Triggered when the form is submitted
   function handleSubmit(event) {
-    addNewUser(roomId,name).then(function(user) {
-      sessionStorage.setItem('userId',user.id);
-
-      //Updates the state to reflect the new user ID belonging to the correct room
-      props.setUserIdExistsButWrongRoom(false);
-    });
+    //This prevents users joining games that have already started
+    db.collection("rooms").doc(roomId).get().then((doc)=>{
+      if(doc.data().turn ===""){
+        addNewUser(roomId,name).then(function(user) {
+          sessionStorage.setItem('userId',user.id);
+    
+          //Updates the state to reflect the new user ID belonging to the correct room
+          props.setUserIdExistsButWrongRoom(false);
+        });
+      } else {
+        setAlert(true);
+      }
+    })
+    
     //IMPORTANT without preventing the default setting a confusing bug occurs where the page reloads before the promise resolves
     event.preventDefault();
     return false;
@@ -274,11 +288,24 @@ function EnterName(props) {
               </label>
               <input type="text" className="form-control"value={name} onChange={handleChange} />
               </div>
-            <button type="submit" disabled={!name} className="btn btn-primary">Submit</button>
+            <button type="submit" disabled={!name} className="btn btn-primary  mb-3">Submit</button>
           </form>
+          {alert ? <GameStartedAlert setAlert={setAlert}/>:null}
         </div>
       </div>
      </div>
+  );
+}
+
+//Alert displayed if an incorrect room ID is displayed
+function GameStartedAlert(props){
+  return (
+  <div className="alert alert-warning alert-dismissible fade show" role="alert">
+    <strong>Game already started</strong> 
+    <button type="button" className="close"  aria-label="Close" onClick={(event)=>{props.setAlert(false); event.preventDefault();}}>
+      <span aria-hidden="true">&times;</span>
+    </button>
+  </div>
   );
 }
 
@@ -305,10 +332,10 @@ function addNewUser(roomId,name) {
 }
 
 //=================================Game=======================================
+//Below here is all the code that actually runs the game
 
 function Game() {
   var db = firebase.firestore();
-
 
   //Could create a room state which is an object that has all the room states inside it - would make passing to other components neater
   //Declare all the states used in the game
@@ -320,6 +347,19 @@ function Game() {
   const [numOfRolls, setNumOfRolls] = useState(sessionStorage.getItem("numOfRolls")||0);
   const [diceToBeKept, setDiceToBeKept] = useState([false,false,false,false,false]);
 
+  const gameStateObject = {
+    turn: turn,
+    diceValues: diceValues,
+    numOfRolls: numOfRolls,
+    users: users,
+    userId: userId
+   };
+
+  //This essentially describes whether the user should be able to click roll
+  const canRoll = turn === userId && numOfRolls < 3;
+
+  //Describes if the user should see start game or roll buttons
+  const showRoll = turn !== "";
 
   //Update the user state every time a new user is added, and update the dicevalues and turn state whenever another player rolls or ends their turn
   useEffect( () => {
@@ -375,7 +415,7 @@ function Game() {
   }
   
   //Sets up for next users turn
-  function EndTurn() {
+  function endTurn() {
 
     //Picks the next user whose turn it will be
     Object.entries(users).forEach( ([id,userData], index) =>{
@@ -399,46 +439,68 @@ function Game() {
     });
   }
 
-  //TODO: This passes a ridiculous number of props
+  function startGame(){
+    setNextTurn(Object.keys(users)[Math.floor(Math.random() * Object.keys(users).length)]);
+    setNumOfRolls(0);
+  }
+
   return (<div className="container centre-text h-100">
     <h1 className="roomIdTitle">
     Game ID: {roomId}
     </h1>
-    <Dice users={users} setNextTurn={setNextTurn} setNumOfRolls={setNumOfRolls} turn={turn} diceToBeKept={diceToBeKept} setDiceToBeKept={setDiceToBeKept} rollDice={rollDice} diceValues={diceValues}  numOfRolls={numOfRolls} userId={userId}/>
-    <ScoreSheet diceValues={diceValues} users={users} setUsers={setUsers} userId={userId} EndTurn={EndTurn} pickScore={turn === userId && numOfRolls >= 3} turn={turn} />
+    <div className="container h-25 mb-4">
+      <Dice {... gameStateObject} diceToBeKept={diceToBeKept} setDiceToBeKept={setDiceToBeKept}/>
+      <div className="row h-25">
+          <div className="col">
+        <StartGameButton showRoll={showRoll} startGame={startGame}/>
+        <RollButton showRoll={showRoll} rollDice={rollDice} canRoll={canRoll}/>
+        </div>
+      </div>
+    </div>
+    <ScoreSheet  {... gameStateObject} setUsers={setUsers} endTurn={endTurn} />
+    <Rules />
   </div>);
 }
+
+//Button which when clicked sets a random player to take the first turn
+function StartGameButton(props){
+
+  function handleClick(e) {
+    props.startGame();
+    e.preventDefault(true);
+  }
+  return (
+    <button className={"btn btn-primary mt-3 " + (props.showRoll ? "hidden" : "")} onClick={handleClick} disabled={props.showRoll}>Start Game</button>
+  )
+}
+
+//Button which when clicked rolls the dice
+function RollButton(props) {
+  return(
+    <button className={"btn btn-primary mt-3 " + (props.showRoll ? "" : "hidden")} onClick = {props.rollDice} disabled={!props.canRoll}>Roll</button>
+  );
+}
+
+
 
 //Component containing all the dice - main function is to iteratively create Die
 function Dice(props){
   //diceContainer is used to get the dimensions of the area the dice can roll in
   const diceContainer = useRef(null);
+
   //This essentially describes whether the user should be able to click roll
   const canRoll = props.turn === props.userId && props.numOfRolls < 3;
-  //These are the initalised states of the Die where they are resting at the positiions given by bootstrap
 
-  //TODO: this doesn't need to be a state could just be two constant arrays and which one to use is decided by diceToBeKept
-  const [styles,setStyles] = useState([{
+  //Position of dice when they are being kept
+  const keep = {
     position: 'relative',
     top: 0,
-    left:0
-  },{
-    position: 'relative',
-    top: 0,
-    left:0
-  },{
-    position: 'relative',
-    top: 0,
-    left:0
-  },{
-    position: 'relative',
-    top: 0,
-    left:0
-  },{
-    position: 'relative',
-    top: 0,
-    left:0
-  }]);
+    left:0,
+    transform: 'rotate(0deg)'
+  };
+
+  //These are the initalised states of the Die where they are resting at the positiions given by bootstrap
+  const [styles,setStyles] = useState([keep,keep,keep,keep,keep]);
 
   //This is called everytime the local dicevalues are updated, 
   //and it sets the css positions of the dice to look like they where thrown
@@ -457,27 +519,23 @@ function Dice(props){
   }));
   },[props.diceValues]);
 
-  //TODO: Passing a hideous number of props here too - maybe investigate redux to manage my states
-  return (
-    <div className="container h-25 mb-4">
+  //The odd checking of number of rolls to "keep" the dice is to ensure they don't get thrown whilst the turn is changing
+    return (
+    
     <div ref={diceContainer} className="row h-75 align-items-end justify-content-center">
       {props.diceValues.map((value, index) => {
         return (
-        <Die style={styles[index]} key={"Dice" + index} value={value} index={index} setDiceToBeKept={props.setDiceToBeKept} diceToBeKept={props.diceToBeKept} canRoll={canRoll} numOfRolls={props.numOfRolls}/>
+          <div className="col-auto dieContainer" style={(props.diceToBeKept[index])||!canRoll || (props.numOfRolls === 3) || (props.numOfRolls === 0)? keep: styles[index] }>
+        <Die key={"Dice" + index} index={index} value={value} setDiceToBeKept={props.setDiceToBeKept}/>
+        </div>
         );
       })}
     </div>
-    <div className="row h-25">
-        <div className="col">
-      <StartGame disabled={props.turn !== ""} users={props.users} setNextTurn={props.setNextTurn} setNumOfRolls={props.setNumOfRolls} turn={props.turn}/>
-      <button className={"btn btn-primary mt-3 " + (props.turn !== "" ? "" : "hidden")} onClick = {(event) => {props.rollDice(event,props.diceToBeKept)}} disabled={!canRoll}>Roll</button>
-      </div>
-    </div>
-    </div>
+    
   );
 }
 
-//This generates a random set of coordinates with every 
+//This generates a random set of unique coordinates with every 
 //coordianate at least 60px apart from the others
 function randomCoordinates(diceContainer) {
     const topOfContainer = diceContainer.current.getBoundingClientRect().top;
@@ -511,33 +569,29 @@ function Die(props){
              'https://upload.wikimedia.org/wikipedia/commons/f/fd/Dice-4-b.svg',
              'https://upload.wikimedia.org/wikipedia/commons/0/08/Dice-5-b.svg',
              'https://upload.wikimedia.org/wikipedia/commons/2/26/Dice-6-b.svg'];
-  //Position of dice when they are being kept
-  const keep = {
-    position: 'relative',
-    top: 0,
-    left:0,
-    transform: 'rotate(0deg)'
-  };
+  
 
   //Code here sets the die position either to "keep" or the thrown state, it also changes the state on click which 
   //when rerendered changes the position
   return(
-    <div className="col-auto dieContainer" style={(props.diceToBeKept[props.index] && props.canRoll) || (props.numOfRolls === 3) || (props.numOfRolls === 0)? keep: props.style }>
-      <img  className = {"dieImg " } src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(props.diceToBeKept.map((item, index) => 
-        index === props.index 
+       <img  className = {"dieImg " } src={_dice[props.value]} alt = {props.value} onClick={(e) => {props.setDiceToBeKept(diceToBeKept => diceToBeKept.map((item, index) => 
+        index === props.index
         ? !item
         : item ))}}/>
-        </div>
     
   );
 }
 
 //Component displaying scoresheet
 function ScoreSheet(props) {
-  //TODO: possibly figure out if game is over by querying database for "-" instead of doing it in child component
-  const [gameOver, setGameOver] = useState(Boolean(Object.keys(props.users).length));
-  //TODO: could also calculate final totals by using database queries in the Winners component
+
+  const {users, ...scoreStateObject} = props;
+  //TODO: possibly figure out if game is over by querying database for "-" instead of doing it in child component, could also calculate final totals by using database queries in the Winners component
   //Proabably neater though also slower
+
+  const [gameOver, setGameOver] = useState(Boolean(Object.keys(props.users).length));
+
+
   let totals =[];
   function pushTotal([name,total]){
     totals.push([name,total]);
@@ -546,7 +600,6 @@ function ScoreSheet(props) {
     setGameOver(Boolean(Object.keys(props.users).length));
   },[props.users]);
 
-  //TODO: ARRRGGHHH too many props
   return (
     <table className="table table-sm w-md-50 w-lg-50 w-xl-50 mx-auto">
     <ReactTooltip place="top" />
@@ -604,7 +657,7 @@ function ScoreSheet(props) {
     </tr>
     {Object.entries(props.users).map((user) => {
       return (
-    <ScoreColumn pushTotal={pushTotal} setGameOver={setGameOver} diceValues={props.diceValues} user={user} setUsers={props.setUsers} userId={props.userId} EndTurn={props.EndTurn} pickScore={props.pickScore} turn={props.turn}/>
+    <ScoreColumn pushTotal={pushTotal} setGameOver={setGameOver} user={user} {...scoreStateObject}/>
    
     );
   })}
@@ -618,6 +671,8 @@ function ScoreSheet(props) {
 //Displays each users score in a column of the score sheet - also registers the changes in score at the end of each round
 function ScoreColumn(props) {
   const setOrder = ["addOnly","threeOfAKind","fourOfAKind","fullHouse","smallStraight","largeStraight","yahtzee","chance","bonusYahtzee"];
+  //Evaluates if the score sheet should be allowing the user to choose how to score their dice
+  const pickScore = props.turn === props.userId && props.numOfRolls >= 3;
   let total=0;
   
   //Edit the user local state to reflect the newly calculated score
@@ -796,13 +851,13 @@ function ScoreColumn(props) {
     }
     
     return (
-      <td className={(innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50)? "clickable" : ""} onClick = {(event)=>{
-      if((innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50)){
+      <td className={(innerValue ==="-" && props.user[0]===props.userId && pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50)? "clickable" : ""} onClick = {(event)=>{
+      if((innerValue ==="-" && props.user[0]===props.userId && pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50)){
         addScore(key,index);
-        props.EndTurn();
+        props.endTurn();
         
       }}}>
-          {(innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && props.pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50) ? calculateScore(value,key,index)[index] :innerValue}
+          {(innerValue ==="-" && props.user[0]===props.userId && pickScore && key !=="bonusYahtzee") || (innerValue ==="-" && props.user[0]===props.userId && pickScore && key ==="bonusYahtzee" && props.user[1].score.yahtzee[0]===50) ? calculateScore(value,key,index)[index] :innerValue}
       </td>
       
     );
@@ -816,19 +871,7 @@ function ScoreColumn(props) {
   );
 }
 
-//Button which when clicked sets a random player to take the first turn
-//TODO: Maybe make it impossible to join game after this is clicked
-function StartGame(props){
 
-  function handleClick(e) {
-    props.setNextTurn(Object.keys(props.users)[Math.floor(Math.random() * Object.keys(props.users).length)]);
-    props.setNumOfRolls(0);
-    e.preventDefault(true);
-  }
-  return (
-    <button className={"btn btn-primary mt-3 " + (props.disabled ? "hidden" : "")}onClick={handleClick} disabled={props.disabled}>Start Game</button>
-  )
-}
 
 function Winners(props) {
   const [modal, setModal] = useState(true);
@@ -843,6 +886,51 @@ function Winners(props) {
          And the winner is .... {props.totals.reduce((a, b) => Object.fromEntries(props.totals)[a[0]] > Object.fromEntries(props.totals)[b[0]] ? a : b)[0]}     </ModalBody>
         <ModalFooter>
           
+        </ModalFooter>
+      </Modal>
+  );
+}
+
+function Rules() {
+  const [modal, setModal] = useState(true);
+
+  const toggle = () => setModal(!modal);
+  var _dice = ['https://upload.wikimedia.org/wikipedia/commons/1/1b/Dice-1-b.svg',
+  'https://upload.wikimedia.org/wikipedia/commons/5/5f/Dice-2-b.svg',
+  'https://upload.wikimedia.org/wikipedia/commons/b/b1/Dice-3-b.svg',
+  'https://upload.wikimedia.org/wikipedia/commons/f/fd/Dice-4-b.svg',
+  'https://upload.wikimedia.org/wikipedia/commons/0/08/Dice-5-b.svg',
+  'https://upload.wikimedia.org/wikipedia/commons/2/26/Dice-6-b.svg'];
+
+
+   return(
+    <Modal isOpen={modal} toggle={toggle} >
+        <ModalHeader toggle={toggle}>How to Play</ModalHeader>
+        <ModalBody>
+          <p>On your turn, you roll 5 dice. You can then reroll any combination of these dice twice more in an attempt to get the best possible scoring combination.
+            You select which dice to keep by clicking (or tapping) on them to place them in your scoring row. 
+            <br></br>
+            <br></br>
+            At the end of your turn, you must choose how to score your dice, as each combination may be scored in a variety of ways. e.g.  </p> 
+            <img  className = {"dieImg mr-2" } src={_dice[0]} alt = "0" ></img>
+            <img  className = {"dieImg mr-2" } src={_dice[0]} alt = "0" ></img>
+            <img  className = {"dieImg mr-2" } src={_dice[0]} alt = "0" ></img>
+            <img  className = {"dieImg mr-2" } src={_dice[4]} alt = "0" ></img>
+            <img  className = {"dieImg " } src={_dice[4]} alt = "0" ></img>
+            <p>could be scored in the following ways:
+            <ul>
+              <li>Add only Aces = 1 + 1 +1 = 3 points</li>
+              <li>Add only Fives = 5 + 5 = 10 points</li>
+              <li>Three of a Kind = 1 + 1 + 1 + 5 + 5 = 13 points</li>
+              <li>Full House = 25 points</li>
+            </ul>
+            You have to score your dice every round and you can score in each category only once.
+            This means that towards the end of the game, you will likely find that you can only score 0 in the remaining categories, so choose how to score carefully.
+            </p>
+          
+           </ModalBody>
+        <ModalFooter>
+          <button className="btn btn-primary" onClick={toggle}>Let's Play</button>
         </ModalFooter>
       </Modal>
   );
