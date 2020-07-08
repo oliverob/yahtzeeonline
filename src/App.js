@@ -416,6 +416,8 @@ function Dice(props){
   //This essentially describes whether the user should be able to click roll
   const canRoll = props.turn === props.userId && props.numOfRolls < 3;
   //These are the initalised states of the Die where they are resting at the positiions given by bootstrap
+
+  //TODO: this doesn't need to be a state could just be two constant arrays and which one to use is decided by diceToBeKept
   const [styles,setStyles] = useState([{
     position: 'relative',
     top: 0,
