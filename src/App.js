@@ -927,7 +927,7 @@ function Rules() {
             This means that towards the end of the game, you will likely find that you can only score 0 in the remaining categories, so choose how to score carefully.
             <br></br>
             <br></br>
-            Invite your friends to play with you by sending them your game ID
+            Invite your friends to play with you by sharing your game ID
             </p>
           
            </ModalBody>
