@@ -1,5 +1,9 @@
+This is my Yahtzee Web App. It allows you to play with your friends by sharing a room code. I have used React on the front-end, and it has a serverless backend which is basically just Firestore.
+
 Project can be found at http://yahtzee-online.web.app
 
+
+-----------------------------------------
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
 
 ## Available Scripts
